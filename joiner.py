@@ -34,26 +34,23 @@ def join(market_situations, sales):
     price = -1
 
     for idx, situation in enumerate(market_situations):
-        timestamp_market = to_ms(situation['timestamp'])
+        timestamp_market = to_timestamp(situation['timestamp'])
 
-        offers[situation['offer_id']] = (situation['price'], situation['quality'])
+        if len(market_situations) > idx + 1 and \
+            sales_counter <= len(sales) and \
+                to_timestamp(market_situations[idx + 1]['timestamp']) > to_timestamp(sales[sales_counter]['timestamp']):
 
-        # TODO @toni: Avoid list index out of range error, remove funny try, except block
-        try:
-            if len(market_situations) >= idx + 1 and sales_counter < len(sales) and to_ms(market_situations[idx + 1]['timestamp']) > to_ms(sales[sales_counter]['timestamp']):
-                sales_current_situation = 0
-                while to_ms(sales[sales_counter]['timestamp']) < timestamp_market:
-                    price = sales[sales_counter]['price']
-                    price_rank = calculate_price_rank(offers, price)
-                    quality = sales[sales_counter]['quality']
-                    sales_counter += 1
-                    sales_current_situation += 1
-                sale_events.append(sales_current_situation)
-            else:
-                sale_events.append(0)
+            sales_current_situation = 0
+            while to_timestamp(sales[sales_counter]['timestamp']) < timestamp_market:
+                price = sales[sales_counter]['price']
+                price_rank = calculate_price_rank(offers, price)
+                quality = sales[sales_counter]['quality']
+                sales_counter += 1
+                sales_current_situation += 1
+            sale_events.append(sales_current_situation)
+        else:
+            sale_events.append(0)
 
-        except Exception:
-            pass
         eventvector.append([float(price), price_rank, quality])
 
     # For debugging
@@ -64,7 +61,7 @@ def join(market_situations, sales):
     #     e.write(sale_events.__str__())
 
 
-def to_ms(timestamp):
+def to_timestamp(timestamp):
     return datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
 
 
@@ -76,4 +73,5 @@ def calculate_price_rank(offers, own_price):
     return price_rank
 
 if __name__ == '__main__':
-    join(read_files())
+    situations, sales = read_files()
+    join(situations, sales)
