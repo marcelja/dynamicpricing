@@ -1,7 +1,13 @@
 import csv
 import datetime
+import numpy as np
+from sklearn import linear_model
+import pickle
+import os
 
 # Any1 has prime, all same prodid, shipping_time_prime,shipping_time_standard
+
+PICKLE_FILE = 'vectors.obj'
 
 
 def read_files():
@@ -23,10 +29,11 @@ def read_files():
 
 def join(market_situations, sales):
 
-    # Layout: [price - float, pricerank1 - int, quality - int]
+    # Layout: [price (float), pricerank1 (int), quality (int)]
     eventvector = []
     sale_events = []
     offers = dict()
+    own_merchant_id = sales[0]['merchant_id']
 
     sales_counter = 0
     price_rank = 0
@@ -36,29 +43,48 @@ def join(market_situations, sales):
     for idx, situation in enumerate(market_situations):
         timestamp_market = to_timestamp(situation['timestamp'])
 
+        offers[situation['offer_id']] = (float(situation['price']), int(situation['quality']))
+
+        # We updated our own price
+        if situation['merchant_id'] == own_merchant_id:
+            price = float(situation['price'])
+            price_rank = calculate_price_rank(offers, price)
+            quality = int(situation['quality'])
+
+        # Calculate sales events for situation
         if len(market_situations) > idx + 1 and \
             sales_counter <= len(sales) and \
                 to_timestamp(market_situations[idx + 1]['timestamp']) > to_timestamp(sales[sales_counter]['timestamp']):
 
             sales_current_situation = 0
             while to_timestamp(sales[sales_counter]['timestamp']) < timestamp_market:
-                price = sales[sales_counter]['price']
-                price_rank = calculate_price_rank(offers, price)
-                quality = sales[sales_counter]['quality']
                 sales_counter += 1
+                # TODO: do something with amount of sold items
                 sales_current_situation += 1
-            sale_events.append(sales_current_situation)
+                eventvector.append([float(price), price_rank, quality])
+                sale_events.append(1)
         else:
             sale_events.append(0)
+            eventvector.append([float(price), price_rank, quality])
 
-        eventvector.append([float(price), price_rank, quality])
+    assert len(eventvector) == len(sale_events)
 
-    # For debugging
-    # with open('vector.txt', 'w') as v:
-    #     v.write(eventvector.__str__())
+    # Serialize objects for reuse
+    with open(PICKLE_FILE, 'wb') as f:
+        pickle.dump((eventvector, sale_events), f)
 
-    # with open('events.txt', 'w') as e:
-    #     e.write(sale_events.__str__())
+    demand_learning(eventvector, sale_events)
+
+
+def demand_learning(situation, sold):
+    reg = linear_model.LogisticRegression(fit_intercept=False)
+    x = np.asarray(situation, dtype=np.int64)
+    y = np.asarray(sold, dtype=np.int64)
+
+    reg.fit(x, y)
+
+    predictions = reg.predict_proba([[20, 1, 1], [50, 7, 1]])
+    print(predictions)
 
 
 def to_timestamp(timestamp):
@@ -68,10 +94,17 @@ def to_timestamp(timestamp):
 def calculate_price_rank(offers, own_price):
     price_rank = 1
     for price, quality in list(offers.values()):
-        if own_price > price:
+        if own_price > float(price):
             price_rank += 1
     return price_rank
 
 if __name__ == '__main__':
-    situations, sales = read_files()
-    join(situations, sales)
+
+    if os.path.isfile(PICKLE_FILE):
+        with open(PICKLE_FILE, 'rb') as f:
+            vectors = pickle.load(f)
+        demand_learning(vectors[0], vectors[1])
+    else:
+        situations, sales = read_files()
+        join(situations, sales)
+
