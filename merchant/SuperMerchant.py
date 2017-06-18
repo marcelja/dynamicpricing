@@ -32,11 +32,6 @@ class SuperMerchant(MerchantBaseLogic):
         self.marketplace_api = MarketplaceApi(host=self.settings['marketplace_url'])
         self.producer_api = ProducerApi(host=self.settings['producer_url'])
 
-        '''
-            Start Logic Loop
-        '''
-        self.run_logic_loop()
-
     def update_api_endpoints(self):
         """
         Updated settings may contain new endpoints, so they need to be set in the api client as well.
@@ -54,21 +49,8 @@ class SuperMerchant(MerchantBaseLogic):
         return self.settings
 
     def update_settings(self, new_settings):
-        def cast_to_expected_type(key, value, def_settings=self.settings):
-            if key in def_settings:
-                return type(def_settings[key])(value)
-            else:
-                return value
-
-        new_settings_casted = dict([
-            (key, cast_to_expected_type(key, new_settings[key]))
-            for key in new_settings
-        ])
-
-        print(new_settings)
-        self.settings.update(new_settings_casted)
+        MerchantBaseLogic.update_settings(self, new_settings)
         self.update_api_endpoints()
-        print(self.settings)
         return self.settings
 
     def sold_offer(self, offer):

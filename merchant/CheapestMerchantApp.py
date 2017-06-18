@@ -1,5 +1,6 @@
 import argparse
 import sys
+import os
 
 sys.path.append('./')
 sys.path.append('../')
@@ -10,8 +11,10 @@ from SuperMerchant import SuperMerchant
 
 # not sure, whether this token stuff brakes something
 
-merchant_token = "{{API_TOKEN}}"
-merchant_token = '3pW5PLHYaGcIlVWJnCbNbDSJQiVXbIHe8njX906iHi13EXM2jxOLBqfbZB9BTQpb'
+if os.getenv('API_TOKEN'):
+    merchant_token = os.getenv('API_TOKEN')
+else:
+    merchant_token = '2ZnJAUNCcv8l2ILULiCwANo7LGEsHCRJlFdvj18MvG8yYTTtCfqN3fTOuhGCthWf'
 
 settings = {
     'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),
@@ -29,6 +32,7 @@ class RuleBasedMerchant(SuperMerchant):
 
     def __init__(self):
         super().__init__(merchant_token, settings)
+        self.run_logic_loop()
 
 
 # This method might be moved to super, maybe
