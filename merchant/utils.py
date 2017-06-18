@@ -11,6 +11,22 @@ import hashlib
 import sys
 import numpy as np
 
+INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
+INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
+
+
+def learn_from_csvs(token):
+    logging.debug('Reading csv files')
+    csvs = {'marketSituation': pd.read_csv(INITIAL_MARKETSITUATION_CSV_PATH,
+                                           header=None,
+                                           names=['amount', 'merchant_id', 'offer_id', 'price', 'prime', 'product_id', 'quality', ' shipping_time_prime', 'shipping_time_standard', 'timestamp', 'triggering_merchant_id', 'uid']),
+            'buyOffer': pd.read_csv(INITIAL_BUYOFFER_CSV_PATH,
+                                    header=None,
+                                    names=['amount', 'consumer_id', 'http_code', 'left_in_stock', 'merchant_id', 'offer_id', 'price', 'product_id', 'quality', 'timestamp', 'uid'])
+            }
+    logging.debug('Finished reading of csv files')
+    return aggregate(csvs, token)
+
 
 def download_data_and_aggregate(merchant_token):
     # Dont know, if we need that URL at some point
@@ -49,7 +65,7 @@ def aggregate(csvs, token):
     sales = csvs['buyOffer']
 
     # If csvs are empty
-    if not situation.empty and not sales.empty:
+    if situation.empty and sales.empty:
         return joined_situations
 
     own_sales = sales[sales['http_code'] == 200].copy()
@@ -116,19 +132,20 @@ def extract_features_from_offer_snapshot(offers_df, merchant_id, product_id=None
         price_rank = 1 + (offers_df['price'] < own_price).sum() + ((offers_df['price'] == own_price).sum()/2)
         distance_to_cheapest_competitor = float(own_price - competitors['price'].min()) if has_competitors else np.nan
         quality_rank = (offers_df['quality'] < own_quality).sum() + 1
+        return {
+            'own_price': own_price,
+            'price_rank': price_rank,
+            'distance_to_cheapest_competitor': distance_to_cheapest_competitor,
+            'quality_rank': quality_rank,
+            'amount_of_all_competitors': amount_of_all_competitors,
+            'average_price_on_market': average_price_on_market
+        }
     else:
-        own_price = np.nan
-        price_rank = np.nan
-        distance_to_cheapest_competitor = np.nan
-        quality_rank = np.nan
+        return None
+    #     own_price = np.nan
+    #     price_rank = np.nan
+    #     distance_to_cheapest_competitor = np.nan
+    #     quality_rank = np.nan
 
     amount_of_all_competitors = len(competitors)
     average_price_on_market = offers_df['price'].mean()
-    return {
-        'own_price': own_price,
-        'price_rank': price_rank,
-        'distance_to_cheapest_competitor': distance_to_cheapest_competitor,
-        'quality_rank': quality_rank,
-        'amount_of_all_competitors': amount_of_all_competitors,
-        'average_price_on_market': average_price_on_market
-    }

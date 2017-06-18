@@ -4,7 +4,7 @@ from merchant_sdk import MerchantBaseLogic, MerchantServer
 from merchant_sdk.models import Offer
 import argparse
 import pickle
-from utils import download_data_and_aggregate, extract_features_from_offer_snapshot
+from utils import download_data_and_aggregate, extract_features_from_offer_snapshot, learn_from_csvs
 from sklearn.linear_model import LogisticRegression
 import datetime
 import logging
@@ -53,13 +53,17 @@ class MLMerchant(SuperMerchant):
     def __init__(self):
         super().__init__(merchant_token, settings)
         self.last_learning = datetime.datetime.now()
-        self.product_models = self.machine_learning()
+        self.product_models = self.initial_learning()
         self.run_logic_loop()
+
+    def initial_learning(self):
+        features_per_situation = learn_from_csvs(merchant_token)
+        save_features(features_per_situation)
+        self.product_models = self.train_model(features_per_situation)
 
     def machine_learning(self):
         history = load_history()
         features_per_situation = download_data_and_aggregate(merchant_token)
-
         history.update(features_per_situation)
         save_features(features_per_situation)
         models = self.train_model(features_per_situation)
@@ -141,28 +145,29 @@ class MLMerchant(SuperMerchant):
 
         return max(1.0, request_count) / settings['max_req_per_sec']
 
-    def calculate_optimal_price(self, product_or_offer, product_prices_by_uid, current_offers=None):
+    def calculate_optimal_price(self, product, product_prices_by_uid, current_offers=None):
         """
         Computes a price for a product based on trained models or (exponential) random fallback
-        :param product_or_offer: product object that is to be priced
+        :param product: product object that is to be priced
         :param current_offers: list of offers
         :return:
         """
-        price = product_prices_by_uid[product_or_offer.uid]
+
+        price = product_prices_by_uid[product.uid]
         try:
-            model = self.models_per_product[product_or_offer.product_id]
+            model = self.model_products[product.product_id]
 
             offer_df = pd.DataFrame([o.to_dict() for o in current_offers])
-            offer_df = offer_df[offer_df['product_id'] == product_or_offer.product_id]
+            offer_df = offer_df[offer_df['product_id'] == product.product_id]
             own_offers_mask = offer_df['merchant_id'] == self.merchant_id
 
             features = []
             for potential_price in range(1, 100, 1):
                 potential_price_candidate = potential_price / 10.0
-                potential_price = price + potential_price_candidate #product_or_offer.price + potential_price_candidate
+                potential_price = price + potential_price_candidate #product.price + potential_price_candidate
                 offer_df.loc[own_offers_mask, 'price'] = potential_price
                 features.append(extract_features_from_offer_snapshot(offer_df, self.merchant_id,
-                                                                     product_id=product_or_offer.product_id))
+                                                                     product_id=product.product_id))
             data = pd.DataFrame(features).dropna()
             # TODO: could be second row, currently
             try:
@@ -177,7 +182,7 @@ class MLMerchant(SuperMerchant):
                 print("set price as ", data['own_price'][data['expected_profit'].argmax()])
             except Exception as e:
                 print(e)
-            
+
             return data['own_price'][data['expected_profit'].argmax()]
         except (KeyError, ValueError) as e:
             # Fallback for new porduct
@@ -187,22 +192,27 @@ class MLMerchant(SuperMerchant):
 
     def train_model(self, features):
         # TODO include time and amount of sold items to featurelist
+        logging.debug('Start training')
         model_products = dict()
+
         for product_id in features:
-            data = features[product_id].dropna()
-            x = data[['amount_of_all_competitors',
-                      'average_price_on_market',
-                      'distance_to_cheapest_competitor',
-                      'price_rank',
-                      'quality_rank',
-                      ]]
-            y = data['sold'].copy()
-            y[y > 1] = 1
+            matrix = []
+            sales = []
+            for feature in features[product_id]:
+                matrix.append(
+                    [feature['amount_of_all_competitors'],
+                     feature['average_price_on_market'],
+                     feature['distance_to_cheapest_competitor'],
+                     feature['price_rank'],
+                     feature['quality_rank']
+                     ])
+                sales.append(1 if feature.get('sold') > 1 else 0)
 
             model = LogisticRegression()
-            model.fit(x, y)
+            model.fit(matrix, sales)
 
             model_products[product_id] = model
+        logging.debug('Finished training')
         return model_products
 
 if __name__ == "__main__":
