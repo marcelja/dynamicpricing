@@ -25,8 +25,10 @@ def download_data_and_aggregate(merchant_token):
             data_url = kafka_api.request_csv_export_for_topic(topic)
             # TODO do we really need panda? Isnt the standard csv reader sufficient?
             csvs[topic] = pd.read_csv(data_url)
+        except pd.io.common.EmptyDataError as e:
+            logging.warning('Kafka returned an empty csv for topic {}'.format(topic))
         except Exception as e:
-            raise 'Could not download data for topic {} from kafka: {}'.format(topic, e)
+            logging.warning('Could not download data for topic {} from kafka: {}'.format(topic, e))
     logging.debug('Download finished')
     joined = aggregate(csvs, merchant_token)
     return joined
@@ -42,12 +44,19 @@ def aggregate(csvs, token):
         $timestamp_1, $sold_yes_no, $own_price, $own_price_rank, $cheapest_competitor, $best_competitor_quality
     :return:
     """
+    joined_situations = dict()
     situation = csvs['marketSituation']
-    sales = csvs['buyOffers']
+    sales = csvs['buyOffer']
+
+    # If csvs are empty
+    if not situation.empty and not sales.empty:
+        return joined_situations
+
     own_sales = sales[sales['http_code'] == 200].copy()
     own_sales.loc[:, 'timestamp'] = match_timestamps(situation['timestamp'], own_sales['timestamp'])
     merchant_id = calculate_merchant_id_from_token(token)
-    joined_situations = dict()
+
+    logging.debug('Aggregating data')
 
     for product_id in np.unique(situation['product_id']):
         ms_df_prod = situation[situation['product_id'] == product_id]
@@ -62,6 +71,7 @@ def aggregate(csvs, token):
             dict_array.append(features)
 
         joined_situations[product_id] = dict_array
+    logging.debug('Finished data aggregation')
     return joined_situations
 
 
