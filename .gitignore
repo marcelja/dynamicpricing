@@ -13,3 +13,7 @@
 
 # IntelliJ
 /out/
+
+# Training data
+marketSituation.csv
+buyOffer.csv
