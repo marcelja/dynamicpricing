@@ -208,7 +208,18 @@ def calculate_merchant_id_from_token(token):
 #     return t_padded[original_locs]['timestamp']
 
 
-# def extract_features_from_offer_snapshot(offers_df, merchant_id, product_id=None):
+def extract_features_from_offer_snapshot(price, offers, merchant_id,
+                                         product_id):
+    features = [price]
+    own_offer = [x for x in offers if x.merchant_id == merchant_id]
+    features.append(own_offer[0].quality)
+    price_list = [x.price for x in offers if x.merchant_id != merchant_id]
+    features.append(calculate_price_rank(price_list, price))
+    features.append(len(price_list))
+    features.append(sum(price_list) / len(price_list))
+    features.append(price - min(price_list))
+    return features
+
 #     if product_id:
 #         offers_df = offers_df[offers_df['product_id'] == product_id]
 #     competitors = offers_df[offers_df['merchant_id'] != merchant_id]

@@ -4,7 +4,7 @@ from merchant_sdk import MerchantBaseLogic, MerchantServer
 from merchant_sdk.models import Offer
 import argparse
 import pickle
-from utils import download_data_and_aggregate, learn_from_csvs
+from utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot
 from sklearn.linear_model import LogisticRegression
 import datetime
 import logging
@@ -17,7 +17,9 @@ MODELS_FILE = 'models.pkl'
 if os.getenv('API_TOKEN'):
     merchant_token = os.getenv('API_TOKEN')
 else:
-    merchant_token = 'XUQfD1aKdJAsEUrqsb2XDpPnm4dotzDRUd7heh2I0CCEg35Ze77rwWfjaJYUJkvn'
+    merchant_token = 'SRRwm8BPitYRO2oMm0ioSJo9kT3SdEj5eC2RKDr37QUVRIrFJZ4ktstdMw6zBq5p'
+    merchant_token = '37HNK9QRYtv1DnFVOJHHCBvY82YJsd9vlQI6ZiW8cT9pHOLehcwtnsTvu2EnfNiR' 
+    merchant_token = 'n2WNk4VNWdDn2YSjBPeyH7tC99zoWiFKkmgUpCrMp5Arddco2GmKOhWXpWLMFbgy' 
 
 settings = {
     'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),
@@ -59,6 +61,7 @@ class MLMerchant(SuperMerchant):
         features_per_situation = learn_from_csvs(merchant_token)
         save_features(features_per_situation)
         self.product_models = self.train_model(features_per_situation)
+        self.last_learning = datetime.datetime.now()
 
     def machine_learning(self):
         history = load_history()
@@ -152,10 +155,12 @@ class MLMerchant(SuperMerchant):
         :param current_offers: list of offers
         :return:
         """
+        print("calc optimal price")
 
         price = product_prices_by_uid[product.uid]
         try:
-            model = self.model_products[product.product_id]
+            # model = self.model_products[product.product_id]
+            model = self.product_models[str(product.product_id)]
 
             offer_df = pd.DataFrame([o.to_dict() for o in current_offers])
             offer_df = offer_df[offer_df['product_id'] == product.product_id]
@@ -166,20 +171,21 @@ class MLMerchant(SuperMerchant):
                 potential_price_candidate = potential_price / 10.0
                 potential_price = price + potential_price_candidate #product.price + potential_price_candidate
                 offer_df.loc[own_offers_mask, 'price'] = potential_price
-                features.append(extract_features_from_offer_snapshot(offer_df, self.merchant_id,
-                                                                     product_id=product.product_id))
-            data = pd.DataFrame(features).dropna()
+                features.append(extract_features_from_offer_snapshot(potential_price, current_offers, self.merchant_id,
+                                                                     product.product_id))
+            # data = pd.DataFrame(features).dropna()
             # TODO: could be second row, currently
             try:
-                filtered = data[['amount_of_all_competitors',
-                                 'average_price_on_market',
-                                 'distance_to_cheapest_competitor',
-                                 'price_rank',
-                                 'quality_rank',
-                                 ]]
-                data['sell_prob'] = model.predict_proba(filtered)[:, 1]
-                data['expected_profit'] = data['sell_prob'] * (data['own_price'] - price)
-                print("set price as ", data['own_price'][data['expected_profit'].argmax()])
+                pass
+                # filtered = data[['amount_of_all_competitors',
+                #                  'average_price_on_market',
+                #                  'distance_to_cheapest_competitor',
+                #                  'price_rank',
+                #                  'quality_rank',
+                #                  ]]
+                probas = model.predict_proba(features)[:, 1]
+                # data['expected_profit'] = data['sell_prob'] * (data['own_price'] - price)
+                # print("set price as ", data['own_price'][data['expected_profit'].argmax()])
             except Exception as e:
                 print(e)
 
