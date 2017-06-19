@@ -10,6 +10,7 @@ import base64
 import hashlib
 import sys
 import numpy as np
+import datetime
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
 INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
@@ -17,15 +18,15 @@ INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
 
 def learn_from_csvs(token):
     logging.debug('Reading csv files')
-    csvs = {'marketSituation': pd.read_csv(INITIAL_MARKETSITUATION_CSV_PATH,
-                                           header=None,
-                                           names=['amount', 'merchant_id', 'offer_id', 'price', 'prime', 'product_id', 'quality', ' shipping_time_prime', 'shipping_time_standard', 'timestamp', 'triggering_merchant_id', 'uid']),
-            'buyOffer': pd.read_csv(INITIAL_BUYOFFER_CSV_PATH,
-                                    header=None,
-                                    names=['amount', 'consumer_id', 'http_code', 'left_in_stock', 'merchant_id', 'offer_id', 'price', 'product_id', 'quality', 'timestamp', 'uid'])
-            }
+    market_situation = pd.read_csv(INITIAL_MARKETSITUATION_CSV_PATH,
+                                   header=None,
+                                   names=['amount', 'merchant_id', 'offer_id', 'price', 'prime', 'product_id', 'quality', ' shipping_time_prime', 'shipping_time_standard', 'timestamp', 'triggering_merchant_id', 'uid']),
+    buy_offer = pd.read_csv(INITIAL_BUYOFFER_CSV_PATH,
+                            header=None,
+                            names=['amount', 'consumer_id', 'http_code', 'left_in_stock', 'merchant_id', 'offer_id', 'price', 'product_id', 'quality', 'timestamp', 'uid'])
+
     logging.debug('Finished reading of csv files')
-    return aggregate(csvs, token)
+    return aggregate(market_situation, buy_offer, token)
 
 
 def download_data_and_aggregate(merchant_token):
@@ -50,6 +51,90 @@ def download_data_and_aggregate(merchant_token):
     return joined
 
 
+def join(market_situations, sales, token):
+
+    # Layout: [price (float), rank1  (bool), rank2, rank3, rank4, quality (int), difference]
+    eventvector = []
+    sale_events = []
+    offers = dict()
+    own_prices = dict()
+    own_merchant_id = calculate_merchant_id_from_token(token)
+
+    sales_counter = 0
+    quality = 0
+    own_price = -1
+
+    timestamp = market_situations[0]['timestamp']
+    current_offers = []
+
+    for situation in market_situations:
+        if timestamp == situation['timestamp']:
+            current_offers.append(situation)
+        else:
+            
+            import pdb; pdb.set_trace()
+
+
+
+
+
+
+
+
+    for idx, situation in enumerate(market_situations):
+        timestamp_market = to_timestamp(situation['timestamp'])
+
+        # We updated our own price
+        if situation['merchant_id'] == own_merchant_id:
+            own_price = float(situation['price'])
+            price_rank = calculate_price_rank(offers, own_price)
+            quality = int(situation['quality'])
+            own_prices[situation['product_id']] = (float(situation['price']), int(situation['quality']))
+        else:
+            offers[situation['product_id']] = {situation['merchant_id']: (float(situation['price']), int(situation['quality']))}
+
+        min_price = calculate_min_price(offers)
+
+
+        # Calculate sales events for situation
+        if len(market_situations) > idx + 1 and \
+            sales_counter <= len(sales) and \
+                to_timestamp(market_situations[idx + 1]['timestamp']) > to_timestamp(sales[sales_counter]['timestamp']):
+
+            sales_current_situation = 0
+            while to_timestamp(sales[sales_counter]['timestamp']) < timestamp_market:
+                sales_counter += 1
+                sales_current_situation += 1
+                event = [float(own_price), quality, own_price - min_price]
+                event[1:1] = price_rank
+                eventvector.append(event)
+                sale_events.append(1)
+        else:
+            sale_events.append(0)
+            event = [float(own_price), quality, own_price - min_price]
+            event[1:1] = price_rank
+            eventvector.append(event)
+
+    assert len(eventvector) == len(sale_events)
+
+
+def to_timestamp(timestamp):
+    return datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def calculate_min_price(offers):
+    price, quality = zip(*list(offers.values()))
+    return min(list(price))
+
+
+def calculate_price_rank(offers, own_price):
+    price_rank = 0
+    for price, quality in list(offers.values()):
+        if own_price > float(price):
+            price_rank += 1
+    return price_rank
+
+
 def aggregate(csvs, token):
     # Method stole from eyample MLmerchant
     """
@@ -60,6 +145,7 @@ def aggregate(csvs, token):
         $timestamp_1, $sold_yes_no, $own_price, $own_price_rank, $cheapest_competitor, $best_competitor_quality
     :return:
     """
+
     joined_situations = dict()
     situation = csvs['marketSituation']
     sales = csvs['buyOffer']
