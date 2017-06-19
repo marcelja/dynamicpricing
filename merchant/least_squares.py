@@ -13,6 +13,7 @@ import math
 import csv
 from scipy.optimize import fmin
 from sklearn import linear_model
+from datetime import datetime
 
 '''
     Template for Ruby deployment to insert defined tokens
@@ -124,9 +125,8 @@ class LeastSquares(MerchantBaseLogic):
     def init_training(self):
         self.x_prices = {}
         for bo_entry in self.buy_offer:
-            if bo_entry['product_id'] not in self.x_prices.keys():
-                self.x_prices[bo_entry['product_id']] = []
-            self.x_prices[bo_entry['product_id']].append(bo_entry)
+            self.update_training_data_from_buy_offer(self.convert_bo_to_sale(bo_entry))
+        self.update_training_data_from_market_situation(self.market_situation)
 
     def f(self, x, product_id):
         result = 0
@@ -172,6 +172,7 @@ class LeastSquares(MerchantBaseLogic):
         if self.state != 'running':
             return
         try:
+            print("Sold offer")
             offers = self.marketplace_api.get_offers()
             self.buy_product_and_update_offer(offers)
         except Exception as e:
@@ -270,46 +271,64 @@ class LeastSquares(MerchantBaseLogic):
             print('error on buying a new product:', e)
 
     def update_training_data(self):
+        print("Start updating training data...")
         downloaded_csvs = download_data(merchant_token)
+        print("Downloaded training data!")
         if downloaded_csvs is None:
             return
+        print("Create records...")
         new_market_situation = downloaded_csvs['marketSituation'].to_records()
         new_buy_offer = downloaded_csvs['buyOffer'].to_records()
-        print("")
+        print("Created records")
         ms_to_append = [self.convert_kafka_market_situation_row_to_internal_object(ms) for ms in new_market_situation]
         bo_to_append = [self.convert_kafka_buy_offer_row_to_internal_object(bo) for bo in new_buy_offer]
-        print("")
-        print("MS length before: {}".format(len(self.market_situation)))
-        print("MS_TS length before: {}".format(len(self.market_situation_at_time)))
+        print("Created arrays")
+        self.update_ms_training_data(ms_to_append)
+        self.update_bo_training_data(bo_to_append)
+
+    def update_ms_training_data(self, downloaded_ms_data):
+        print("update ms training data...")
         timestamps_of_new_ms = []
-        for ms in ms_to_append:
+        for ms in downloaded_ms_data:
             if ms['timestamp'] not in timestamps_of_new_ms and ms['timestamp'] not in self.market_situation_at_time.keys():
                 timestamps_of_new_ms.append(ms['timestamp'])
                 self.market_situation.append(ms)
                 self.market_situation_at_time[ms['timestamp']] = []
                 self.market_situation_at_time[ms['timestamp']].append(ms)
+                print("updated ms, update training data... (1)")
+                self.update_training_data_from_market_situation([ms])
             elif ms['timestamp'] in timestamps_of_new_ms:
                 self.market_situation.append(ms)
                 self.market_situation_at_time[ms['timestamp']].append(ms)
-        print("MS length after: {}".format(len(self.market_situation)))
-        print("MS_TS length after: {}".format(len(self.market_situation_at_time)))
-        print("BO length before: {}".format(len(self.buy_offer)))
-        print("BO_TS length before: {}".format(len(self.buy_offer_at_time)))
+                print("updated ms, update training data... (2)")
+                self.update_training_data_from_market_situation([ms])
+        print("Finished updating MS training data")
+
+    def update_bo_training_data(self, downloaded_bo_data):
+        print("update bo training data...")
         timestamps_of_new_bo = []
-        for bo in bo_to_append:
+        for bo in downloaded_bo_data:
             if bo['timestamp'] not in timestamps_of_new_bo and bo['timestamp'] not in self.buy_offer_at_time.keys():
                 timestamps_of_new_bo.append(bo['timestamp'])
                 self.buy_offer.append(bo)
                 self.buy_offer_at_time[bo['timestamp']] = []
                 self.buy_offer_at_time[bo['timestamp']].append(bo)
+                print("updated bo, update training data... (1)")
+                self.update_training_data_from_buy_offer(self.convert_bo_to_sale(bo))
             elif bo['timestamp'] in timestamps_of_new_bo:
                 self.buy_offer.append(bo)
                 self.buy_offer_at_time[bo['timestamp']].append(bo)
-        print("BO length after: {}".format(len(self.buy_offer)))
-        print("BO_TS length after: {}".format(len(self.buy_offer_at_time)))
+                print("updated bo, update training data... (2)")
+                self.update_training_data_from_buy_offer(self.convert_bo_to_sale(bo))
+        print("Finished updating BO training data")
+
+    def update_training_data_from_buy_offer(self, bo):
+        if bo['product_id'] not in self.x_prices.keys():
+            self.x_prices[bo['product_id']] = []
+        self.x_prices[bo['product_id']].append(bo)
 
     def convert_kafka_buy_offer_row_to_internal_object(self, row):
-        if row[3] != 200: # http code
+        if row[3] != 200:  # http code
             return None
         return {'amount': row[1], 'consumer_id': row[2], 'left_in_stock': row[4], 'merchant_id': row[5], 'offer_id': row[6], 'price': row[7], 'product_id': row[8], 'quality': row[9],
                 'timestamp': row[10]}
@@ -318,13 +337,45 @@ class LeastSquares(MerchantBaseLogic):
         return {'amount': row[1], 'merchant_id': row[2], 'offer_id': row[3], 'price': row[4], 'prime': row[5], 'product_id': row[6], 'quality': row[7], 'shipping_time_prime': row[8],
                 'shipping_time_standard': row[9], 'timestamp': row[10], 'triggering_merchant_id': row[11]}
 
+    def update_training_data_from_market_situation(self, market_situation):
+        print("Update training data from market situation...")
+        for ms in market_situation:
+            previous_ms = self.find_previous_ms(market_situation, ms['product_id'], ms['merchant_id'], ms['timestamp'])
+            print("Did not find find ")
+            if previous_ms is None and self.market_situation != market_situation:
+                previous_ms = self.find_previous_ms(self.market_situation, ms['product_id'], ms['merchant_id'], ms['timestamp'])
+            print("Found previous ms: {}".format(previous_ms))
+            if previous_ms is None:
+                return
+            if int(previous_ms['amount']) > int(ms['amount']):
+                self.update_training_data_from_buy_offer(self.convert_ms_to_sale(previous_ms))
+        print("Updated training data from market situation!")
+
+    def find_previous_ms(self, market_situation, product_id, merchant_id, timestamp):
+        previous_ms = []
+        for ms in market_situation:
+            if ms['product_id'] == product_id and ms['merchant_id'] == merchant_id and datetime.strptime(ms['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.strptime(timestamp,
+                                                                                                                                                                       "%Y-%m-%dT%H:%M:%S.%fZ"):
+                previous_ms.append(ms)
+        ms_max_timestamp = None
+        for ms in previous_ms:
+            if ms_max_timestamp is None or datetime.strptime(ms_max_timestamp['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.strptime(ms['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ"):
+                ms_max_timestamp = ms
+        return ms_max_timestamp
+
+    def convert_ms_to_sale(self, ms):
+        return {'product_id': ms['product_id'], 'price': ms['price']}
+
+    def convert_bo_to_sale(self, bo):
+        return {'product_id': bo['product_id'], 'price': bo['price']}
+
 
 merchant_logic = LeastSquares()
 merchant_server = MerchantServer(merchant_logic)
 app = merchant_server.app
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='PriceWars Merchant Being Cheapest')
+    parser = argparse.ArgumentParser(description='PriceWars Merchant using least squares')
     parser.add_argument('--port', type=int,
                         help='port to bind flask App to')
     args = parser.parse_args()
