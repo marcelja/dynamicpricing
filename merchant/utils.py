@@ -44,7 +44,7 @@ def learn_from_csvs(token):
     return aggregate(market_situation, sales, merchant_id)
 
 
-def download_data_and_aggregate(merchant_token):
+def download_data_and_aggregate(merchant_token, merchant_id):
     # Dont know, if we need that URL at some point
     # 'http://vm-mpws2016hp1-05.eaalab.hpi.uni-potsdam.de:8001'
     PricewarsRequester.add_api_token(merchant_token)
@@ -52,6 +52,8 @@ def download_data_and_aggregate(merchant_token):
     kafka_url = os.getenv('PRICEWARS_KAFKA_REVERSE_PROXY_URL', 'http://127.0.0.1:8001')
     kafka_api = KafkaApi(host=kafka_url)
     csvs = {'marketSituation': None, 'buyOffer': None}
+
+
     for topic in ['marketSituation', 'buyOffer']:
         try:
             data_url = kafka_api.request_csv_export_for_topic(topic)
@@ -62,13 +64,14 @@ def download_data_and_aggregate(merchant_token):
         except Exception as e:
             logging.warning('Could not download data for topic {} from kafka: {}'.format(topic, e))
     logging.debug('Download finished')
-    joined = aggregate(csvs, merchant_token)
+    joined = aggregate(csvs['marketSituation'].to_records(), csvs['buyOffer'].to_records(), merchant_id)
     return joined
 
 
 def aggregate(market_situation, sales, merchant_id):
     global vectors
     logging.debug('Starting data aggregation')
+    import pdb; pdb.set_trace()
     timestamp = market_situation[0]['timestamp']
     current_offers = []
     sales_counter = 0
@@ -210,6 +213,7 @@ def calculate_merchant_id_from_token(token):
 
 def extract_features_from_offer_snapshot(price, offers, merchant_id,
                                          product_id):
+    offers = [x for x in offers if product_id == x.product_id]
     features = [price]
     own_offer = [x for x in offers if x.merchant_id == merchant_id]
     features.append(own_offer[0].quality)

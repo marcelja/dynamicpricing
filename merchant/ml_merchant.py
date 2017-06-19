@@ -31,7 +31,7 @@ settings = {
     'shipping': 2,
     'primeShipping': 1,
     'max_req_per_sec': 10.0,
-    'learning_interval': 2.0,
+    'learning_interval': 1.0,
 }
 
 
@@ -54,6 +54,8 @@ def save_features(features_per_situation):
 class MLMerchant(SuperMerchant):
     def __init__(self):
         super().__init__(merchant_token, settings)
+        download_data_and_aggregate(merchant_token, self.merchant_id)
+        raise
         self.initial_learning()
         self.run_logic_loop()
 
@@ -61,11 +63,12 @@ class MLMerchant(SuperMerchant):
         features_per_situation = learn_from_csvs(merchant_token)
         save_features(features_per_situation)
         self.product_models = self.train_model(features_per_situation)
+        # TODO kafka learning
         self.last_learning = datetime.datetime.now()
 
     def machine_learning(self):
         history = load_history()
-        features_per_situation = download_data_and_aggregate(merchant_token)
+        features_per_situation = download_data_and_aggregate(merchant_token, self.merchant_id)
         # TODO does that work
         history.update(features_per_situation)
         save_features(features_per_situation)
@@ -184,14 +187,19 @@ class MLMerchant(SuperMerchant):
                 #                  'quality_rank',
                 #                  ]]
                 probas = model.predict_proba(features)[:, 1]
-                # data['expected_profit'] = data['sell_prob'] * (data['own_price'] - price)
-                # print("set price as ", data['own_price'][data['expected_profit'].argmax()])
+                max_expected_profit = 0
+                for i, f in enumerate(features):
+                    expected_profit = probas[i] * (f[0] - price)
+                    if expected_profit > max_expected_profit:
+                        max_expected_profit = expected_profit
+                        best_price = f[0]
+                print(best_price)
+                return best_price
             except Exception as e:
                 print(e)
-
-            return data['own_price'][data['expected_profit'].argmax()]
         except (KeyError, ValueError) as e:
             # Fallback for new porduct
+            print("RANDOMMMMMMMMM")
             return price * (np.random.exponential() + 0.99)
         except Exception as e:
             pass
