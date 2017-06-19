@@ -14,8 +14,13 @@ class TestLeastSquares(TestCase):
     def test_read_csv_file(self):
         # self.leastSquares.read_csv_file()
         self.assertEqual(411940, len(self.leastSquares.market_situation))
+        self.assertEqual(8869, len(self.leastSquares.buy_offer))
+        self.assertEqual(61243, len(self.leastSquares.market_situation_at_time))
+        self.assertEqual(8869, len(self.leastSquares.buy_offer_at_time))
 
     def test_init_training(self):
-        self.assertEqual(1, len(self.leastSquares.example_x))
-        self.assertTrue('1' in self.leastSquares.example_x.keys())
+        self.assertEqual(1, len(self.leastSquares.x_prices))
+        self.assertTrue('1' in self.leastSquares.x_prices.keys())
 
+    def test_update_training_data(self):
+        self.leastSquares.update_training_data()

@@ -4,7 +4,7 @@ import logging
 
 sys.path.append('./')
 sys.path.append('../')
-from merchant_sdk.api import KafkaApi, PricewarsRequester
+from merchant.merchant_sdk.api import KafkaApi, PricewarsRequester
 import os
 import base64
 import hashlib
@@ -30,6 +30,11 @@ def learn_from_csvs(token):
 
 
 def download_data_and_aggregate(merchant_token):
+    joined = aggregate(download_data(merchant_token), merchant_token)
+    return joined
+
+
+def download_data(merchant_token):
     # Dont know, if we need that URL at some point
     # 'http://vm-mpws2016hp1-05.eaalab.hpi.uni-potsdam.de:8001'
     PricewarsRequester.add_api_token(merchant_token)
@@ -44,11 +49,12 @@ def download_data_and_aggregate(merchant_token):
             csvs[topic] = pd.read_csv(data_url)
         except pd.io.common.EmptyDataError as e:
             logging.warning('Kafka returned an empty csv for topic {}'.format(topic))
+            return None
         except Exception as e:
             logging.warning('Could not download data for topic {} from kafka: {}'.format(topic, e))
+            return None
     logging.debug('Download finished')
-    joined = aggregate(csvs, merchant_token)
-    return joined
+    return csvs
 
 
 def join(market_situations, sales, token):
