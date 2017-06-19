@@ -11,22 +11,37 @@ import hashlib
 import sys
 import numpy as np
 import datetime
+import csv
+from collections import defaultdict
+
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
 INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
 
 
+COMPETITOR_OFFERS = defaultdict(dict)
+OWN_OFFERS = defaultdict(dict)
+vectors = dict()
+
+
 def learn_from_csvs(token):
     logging.debug('Reading csv files')
-    market_situation = pd.read_csv(INITIAL_MARKETSITUATION_CSV_PATH,
-                                   header=None,
-                                   names=['amount', 'merchant_id', 'offer_id', 'price', 'prime', 'product_id', 'quality', ' shipping_time_prime', 'shipping_time_standard', 'timestamp', 'triggering_merchant_id', 'uid']),
-    buy_offer = pd.read_csv(INITIAL_BUYOFFER_CSV_PATH,
-                            header=None,
-                            names=['amount', 'consumer_id', 'http_code', 'left_in_stock', 'merchant_id', 'offer_id', 'price', 'product_id', 'quality', 'timestamp', 'uid'])
+    market_situation = []
+    sales = []
+    with open(INITIAL_MARKETSITUATION_CSV_PATH, 'r') as csvfile:
+        fieldnames = ['amount', 'merchant_id', 'offer_id', 'price', 'prime', 'product_id', 'quality', ' shipping_time_prime', 'shipping_time_standard', 'timestamp', 'triggering_merchant_id', 'uid']
+        situation_reader = csv.DictReader(csvfile, fieldnames=fieldnames)
+        for situation in situation_reader:
+            market_situation.append(situation)
 
+    with open(INITIAL_BUYOFFER_CSV_PATH, 'r') as csvfile:
+        fieldnames = ['amount', 'consumer_id', 'http_code', 'left_in_stock', 'merchant_id', 'offer_id', 'price', 'product_id', 'quality', 'timestamp', 'uid']
+        sales_reader = csv.DictReader(csvfile, fieldnames=fieldnames)
+        for sale in sales_reader:
+            sales.append(sale)
     logging.debug('Finished reading of csv files')
-    return aggregate(market_situation, buy_offer, token)
+    merchant_id = sales[0]['merchant_id']
+    return aggregate(market_situation, sales, merchant_id)
 
 
 def download_data_and_aggregate(merchant_token):
@@ -51,71 +66,68 @@ def download_data_and_aggregate(merchant_token):
     return joined
 
 
-def join(market_situations, sales, token):
-
-    # Layout: [price (float), rank1  (bool), rank2, rank3, rank4, quality (int), difference]
-    eventvector = []
-    sale_events = []
-    offers = dict()
-    own_prices = dict()
-    own_merchant_id = calculate_merchant_id_from_token(token)
-
-    sales_counter = 0
-    quality = 0
-    own_price = -1
-
-    timestamp = market_situations[0]['timestamp']
+def aggregate(market_situation, sales, merchant_id):
+    global vectors
+    logging.debug('Starting data aggregation')
+    timestamp = market_situation[0]['timestamp']
     current_offers = []
+    sales_counter = 0
 
-    for situation in market_situations:
+    for situation in market_situation:
         if timestamp == situation['timestamp']:
             current_offers.append(situation)
         else:
-            
-            import pdb; pdb.set_trace()
-
-
-
-
-
-
-
-
-    for idx, situation in enumerate(market_situations):
-        timestamp_market = to_timestamp(situation['timestamp'])
-
-        # We updated our own price
-        if situation['merchant_id'] == own_merchant_id:
-            own_price = float(situation['price'])
-            price_rank = calculate_price_rank(offers, own_price)
-            quality = int(situation['quality'])
-            own_prices[situation['product_id']] = (float(situation['price']), int(situation['quality']))
-        else:
-            offers[situation['product_id']] = {situation['merchant_id']: (float(situation['price']), int(situation['quality']))}
-
-        min_price = calculate_min_price(offers)
-
-
-        # Calculate sales events for situation
-        if len(market_situations) > idx + 1 and \
-            sales_counter <= len(sales) and \
-                to_timestamp(market_situations[idx + 1]['timestamp']) > to_timestamp(sales[sales_counter]['timestamp']):
-
-            sales_current_situation = 0
-            while to_timestamp(sales[sales_counter]['timestamp']) < timestamp_market:
+            own_sales = []
+            while to_timestamp(sales[sales_counter]['timestamp']) < to_timestamp(situation['timestamp']):
+                if sales[sales_counter]['http_code'][0] == '2':
+                    own_sales.append(sales[sales_counter])
                 sales_counter += 1
-                sales_current_situation += 1
-                event = [float(own_price), quality, own_price - min_price]
-                event[1:1] = price_rank
-                eventvector.append(event)
-                sale_events.append(1)
-        else:
-            sale_events.append(0)
-            event = [float(own_price), quality, own_price - min_price]
-            event[1:1] = price_rank
-            eventvector.append(event)
+            calculate_features(current_offers, own_sales, merchant_id)
 
-    assert len(eventvector) == len(sale_events)
+            timestamp = situation['timestamp']
+            current_offers.clear()
+            current_offers.append(situation)
+    logging.debug('Finished data aggregation')
+    return vectors
+
+
+def calculate_features(offers, sales, merchant_id):
+    global vectors
+    for offer in offers:
+        if offer['merchant_id'] == merchant_id:
+            OWN_OFFERS[offer['product_id']][offer['offer_id']] = (offer['price'], offer['quality'])
+        else:
+            COMPETITOR_OFFERS[offer['product_id']][offer['offer_id']] = (offer['price'], offer['quality'])
+
+    items_sold = [sold['offer_id'] for sold in sales]
+
+    for product_id, offers in OWN_OFFERS.items():
+        # Layout: Ownprice, quality, price_rank, (amount_of_offers), average_price_on_market, distance_to_cheapest, (amount_of_comp)
+        for offer_id, values in offers.items():
+            features = []
+            own_price = float(values[0])
+            features.append(own_price)
+            features.append(int(values[1]))
+            price_list = [float(offer[0]) for offer in COMPETITOR_OFFERS[product_id].values()]
+            features.append(calculate_price_rank(price_list, own_price))
+            features.append(len(COMPETITOR_OFFERS[product_id].values()))
+            features.append(sum(price_list) / len(price_list))
+            features.append(own_price - min(price_list))
+
+            sold = 1 if offer_id in items_sold else 0
+
+            if not vectors.get(product_id):
+                vectors[product_id] = ([], [])
+            vectors[product_id][0].append(features)
+            vectors[product_id][1].append(sold)
+
+
+def calculate_price_rank(price_list, own_price):
+    price_rank = 1
+    for price in price_list:
+        if own_price > price:
+            price_rank += 1
+    return price_rank
 
 
 def to_timestamp(timestamp):
@@ -127,15 +139,8 @@ def calculate_min_price(offers):
     return min(list(price))
 
 
-def calculate_price_rank(offers, own_price):
-    price_rank = 0
-    for price, quality in list(offers.values()):
-        if own_price > float(price):
-            price_rank += 1
-    return price_rank
 
-
-def aggregate(csvs, token):
+# def aggregate(csvs, token):
     # Method stole from eyample MLmerchant
     """
     aggregate is going to transform the downloaded two csv it into a suitable data format, based on:
@@ -146,35 +151,35 @@ def aggregate(csvs, token):
     :return:
     """
 
-    joined_situations = dict()
-    situation = csvs['marketSituation']
-    sales = csvs['buyOffer']
+    # joined_situations = dict()
+    # situation = csvs['marketSituation']
+    # sales = csvs['buyOffer']
 
-    # If csvs are empty
-    if situation.empty and sales.empty:
-        return joined_situations
+    # # If csvs are empty
+    # if situation.empty and sales.empty:
+    #     return joined_situations
 
-    own_sales = sales[sales['http_code'] == 200].copy()
-    own_sales.loc[:, 'timestamp'] = match_timestamps(situation['timestamp'], own_sales['timestamp'])
-    merchant_id = calculate_merchant_id_from_token(token)
+    # own_sales = sales[sales['http_code'] == 200].copy()
+    # own_sales.loc[:, 'timestamp'] = match_timestamps(situation['timestamp'], own_sales['timestamp'])
+    # merchant_id = calculate_merchant_id_from_token(token)
 
-    logging.debug('Aggregating data')
+    # logging.debug('Aggregating data')
 
-    for product_id in np.unique(situation['product_id']):
-        ms_df_prod = situation[situation['product_id'] == product_id]
+    # for product_id in np.unique(situation['product_id']):
+    #     ms_df_prod = situation[situation['product_id'] == product_id]
 
-        dict_array = []
-        for timestamp, group in ms_df_prod.groupby('timestamp'):
-            features = extract_features_from_offer_snapshot(group, merchant_id)
-            features.update({
-                'timestamp': timestamp,
-                'sold': own_sales[own_sales['timestamp'] == timestamp]['amount'].sum(),
-            })
-            dict_array.append(features)
+    #     dict_array = []
+    #     for timestamp, group in ms_df_prod.groupby('timestamp'):
+    #         features = extract_features_from_offer_snapshot(group, merchant_id)
+    #         features.update({
+    #             'timestamp': timestamp,
+    #             'sold': own_sales[own_sales['timestamp'] == timestamp]['amount'].sum(),
+    #         })
+    #         dict_array.append(features)
 
-        joined_situations[product_id] = dict_array
-    logging.debug('Finished data aggregation')
-    return joined_situations
+    #     joined_situations[product_id] = dict_array
+    # logging.debug('Finished data aggregation')
+    # return joined_situations
 
 
 def calculate_merchant_id_from_token(token):
@@ -182,56 +187,56 @@ def calculate_merchant_id_from_token(token):
         token.encode('utf-8')).digest()).decode('utf-8')
 
 
-def match_timestamps(continuous_timestamps, point_timestamps):
-    # WHAT ???
-    t_ms = pd.DataFrame({
-        'timestamp': continuous_timestamps,
-        'origin': np.zeros((len(continuous_timestamps)))
-    })
-    t_bo = pd.DataFrame({
-        'timestamp': point_timestamps,
-        'origin': np.ones((len(point_timestamps)))
-    })
+# def match_timestamps(continuous_timestamps, point_timestamps):
+#     # WHAT ???
+#     t_ms = pd.DataFrame({
+#         'timestamp': continuous_timestamps,
+#         'origin': np.zeros((len(continuous_timestamps)))
+#     })
+#     t_bo = pd.DataFrame({
+#         'timestamp': point_timestamps,
+#         'origin': np.ones((len(point_timestamps)))
+#     })
 
-    t_combined = pd.concat([t_ms, t_bo], axis=0).sort_values(by='timestamp')
-    original_locs = t_combined['origin'] == 1
+#     t_combined = pd.concat([t_ms, t_bo], axis=0).sort_values(by='timestamp')
+#     original_locs = t_combined['origin'] == 1
 
-    t_combined.loc[original_locs, 'timestamp'] = np.nan
-    # pad: propagates last marketSituation timestamp to all following (NaN) buyOffers
-    t_padded = t_combined.fillna(method='pad')
+#     t_combined.loc[original_locs, 'timestamp'] = np.nan
+#     # pad: propagates last marketSituation timestamp to all following (NaN) buyOffers
+#     t_padded = t_combined.fillna(method='pad')
 
-    return t_padded[original_locs]['timestamp']
+#     return t_padded[original_locs]['timestamp']
 
 
-def extract_features_from_offer_snapshot(offers_df, merchant_id, product_id=None):
-    if product_id:
-        offers_df = offers_df[offers_df['product_id'] == product_id]
-    competitors = offers_df[offers_df['merchant_id'] != merchant_id]
-    own_situation = offers_df[offers_df['merchant_id'] == merchant_id]
-    has_offer = len(own_situation) > 0
-    has_competitors = len(competitors) > 0
+# def extract_features_from_offer_snapshot(offers_df, merchant_id, product_id=None):
+#     if product_id:
+#         offers_df = offers_df[offers_df['product_id'] == product_id]
+#     competitors = offers_df[offers_df['merchant_id'] != merchant_id]
+#     own_situation = offers_df[offers_df['merchant_id'] == merchant_id]
+#     has_offer = len(own_situation) > 0
+#     has_competitors = len(competitors) > 0
 
-    if has_offer:
-        own_offer = own_situation.sort_values(by='price').iloc[0]
-        own_price = own_offer['price']
-        own_quality = own_offer['quality']
-        price_rank = 1 + (offers_df['price'] < own_price).sum() + ((offers_df['price'] == own_price).sum()/2)
-        distance_to_cheapest_competitor = float(own_price - competitors['price'].min()) if has_competitors else np.nan
-        quality_rank = (offers_df['quality'] < own_quality).sum() + 1
-        return {
-            'own_price': own_price,
-            'price_rank': price_rank,
-            'distance_to_cheapest_competitor': distance_to_cheapest_competitor,
-            'quality_rank': quality_rank,
-            'amount_of_all_competitors': amount_of_all_competitors,
-            'average_price_on_market': average_price_on_market
-        }
-    else:
-        return None
-    #     own_price = np.nan
-    #     price_rank = np.nan
-    #     distance_to_cheapest_competitor = np.nan
-    #     quality_rank = np.nan
+#     if has_offer:
+#         own_offer = own_situation.sort_values(by='price').iloc[0]
+#         own_price = own_offer['price']
+#         own_quality = own_offer['quality']
+#         price_rank = 1 + (offers_df['price'] < own_price).sum() + ((offers_df['price'] == own_price).sum()/2)
+#         distance_to_cheapest_competitor = float(own_price - competitors['price'].min()) if has_competitors else np.nan
+#         quality_rank = (offers_df['quality'] < own_quality).sum() + 1
+#         return {
+#             'own_price': own_price,
+#             'price_rank': price_rank,
+#             'distance_to_cheapest_competitor': distance_to_cheapest_competitor,
+#             'quality_rank': quality_rank,
+#             'amount_of_all_competitors': amount_of_all_competitors,
+#             'average_price_on_market': average_price_on_market
+#         }
+#     else:
+#         return None
+#     #     own_price = np.nan
+#     #     price_rank = np.nan
+#     #     distance_to_cheapest_competitor = np.nan
+#     #     quality_rank = np.nan
 
-    amount_of_all_competitors = len(competitors)
-    average_price_on_market = offers_df['price'].mean()
+#     amount_of_all_competitors = len(competitors)
+#     average_price_on_market = offers_df['price'].mean()

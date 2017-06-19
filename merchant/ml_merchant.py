@@ -4,7 +4,7 @@ from merchant_sdk import MerchantBaseLogic, MerchantServer
 from merchant_sdk.models import Offer
 import argparse
 import pickle
-from utils import download_data_and_aggregate, extract_features_from_offer_snapshot, learn_from_csvs
+from utils import download_data_and_aggregate, learn_from_csvs
 from sklearn.linear_model import LogisticRegression
 import datetime
 import logging
@@ -52,8 +52,7 @@ def save_features(features_per_situation):
 class MLMerchant(SuperMerchant):
     def __init__(self):
         super().__init__(merchant_token, settings)
-        self.last_learning = datetime.datetime.now()
-        self.product_models = self.initial_learning()
+        self.initial_learning()
         self.run_logic_loop()
 
     def initial_learning(self):
@@ -64,6 +63,7 @@ class MLMerchant(SuperMerchant):
     def machine_learning(self):
         history = load_history()
         features_per_situation = download_data_and_aggregate(merchant_token)
+        # TODO does that work
         history.update(features_per_situation)
         save_features(features_per_situation)
         models = self.train_model(features_per_situation)
@@ -195,21 +195,9 @@ class MLMerchant(SuperMerchant):
         logging.debug('Start training')
         model_products = dict()
 
-        for product_id in features:
-            matrix = []
-            sales = []
-            for feature in features[product_id]:
-                matrix.append(
-                    [feature['amount_of_all_competitors'],
-                     feature['average_price_on_market'],
-                     feature['distance_to_cheapest_competitor'],
-                     feature['price_rank'],
-                     feature['quality_rank']
-                     ])
-                sales.append(1 if feature.get('sold') > 1 else 0)
-
+        for product_id, vector_tuple in features.items():
             model = LogisticRegression()
-            model.fit(matrix, sales)
+            model.fit(vector_tuple[0], vector_tuple[1])
 
             model_products[product_id] = model
         logging.debug('Finished training')
