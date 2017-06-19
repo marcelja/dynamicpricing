@@ -13,6 +13,7 @@ import numpy as np
 import datetime
 import csv
 from collections import defaultdict
+import requests
 
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
@@ -53,34 +54,33 @@ def download_data_and_aggregate(merchant_token, merchant_id):
     kafka_api = KafkaApi(host=kafka_url)
     csvs = {'marketSituation': None, 'buyOffer': None}
 
-
     for topic in ['marketSituation', 'buyOffer']:
         try:
             data_url = kafka_api.request_csv_export_for_topic(topic)
-            # TODO do we really need panda? Isnt the standard csv reader sufficient?
-            csvs[topic] = pd.read_csv(data_url)
-        except pd.io.common.EmptyDataError as e:
-            logging.warning('Kafka returned an empty csv for topic {}'.format(topic))
+            # TODO error handling for empty csvs
+            resp = requests.get(data_url, timeout=2)
+            reader = csv.DictReader(resp.text.split("\n"))
+            csvs[topic] = [line for line in reader]
         except Exception as e:
             logging.warning('Could not download data for topic {} from kafka: {}'.format(topic, e))
     logging.debug('Download finished')
-    joined = aggregate(csvs['marketSituation'].to_records(), csvs['buyOffer'].to_records(), merchant_id)
+    joined = aggregate(csvs['marketSituation'], csvs['buyOffer'], merchant_id)
+
     return joined
 
 
 def aggregate(market_situation, sales, merchant_id):
     global vectors
     logging.debug('Starting data aggregation')
-    import pdb; pdb.set_trace()
     timestamp = market_situation[0]['timestamp']
     current_offers = []
     sales_counter = 0
-
     for situation in market_situation:
         if timestamp == situation['timestamp']:
             current_offers.append(situation)
         else:
             own_sales = []
+
             while to_timestamp(sales[sales_counter]['timestamp']) < to_timestamp(situation['timestamp']):
                 if sales[sales_counter]['http_code'][0] == '2':
                     own_sales.append(sales[sales_counter])
@@ -112,6 +112,9 @@ def calculate_features(offers, sales, merchant_id):
             features.append(own_price)
             features.append(int(values[1]))
             price_list = [float(offer[0]) for offer in COMPETITOR_OFFERS[product_id].values()]
+            # TODO remove the shit below, when fixed
+            if not price_list:
+                continue
             features.append(calculate_price_rank(price_list, own_price))
             features.append(len(COMPETITOR_OFFERS[product_id].values()))
             features.append(sum(price_list) / len(price_list))

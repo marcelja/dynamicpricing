@@ -17,9 +17,7 @@ MODELS_FILE = 'models.pkl'
 if os.getenv('API_TOKEN'):
     merchant_token = os.getenv('API_TOKEN')
 else:
-    merchant_token = 'SRRwm8BPitYRO2oMm0ioSJo9kT3SdEj5eC2RKDr37QUVRIrFJZ4ktstdMw6zBq5p'
-    merchant_token = '37HNK9QRYtv1DnFVOJHHCBvY82YJsd9vlQI6ZiW8cT9pHOLehcwtnsTvu2EnfNiR' 
-    merchant_token = 'n2WNk4VNWdDn2YSjBPeyH7tC99zoWiFKkmgUpCrMp5Arddco2GmKOhWXpWLMFbgy' 
+    merchant_token = 'Dci8SxLd3N6ixvT3XLhPKiGGryb5hpFtSx2uvOXyleijaCm7XUXrDn85ljATZPO2'
 
 settings = {
     'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),
@@ -54,8 +52,8 @@ def save_features(features_per_situation):
 class MLMerchant(SuperMerchant):
     def __init__(self):
         super().__init__(merchant_token, settings)
-        download_data_and_aggregate(merchant_token, self.merchant_id)
-        raise
+        # download_data_and_aggregate(merchant_token, self.merchant_id)
+        # raise
         self.initial_learning()
         self.run_logic_loop()
 
@@ -222,7 +220,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PriceWars Merchant doing fancy ML')
     parser.add_argument('--port',
                         type=int,
-                        default=5100,
+                        default=5101,
                         help='Port to bind flask App to, default is 5100')
     args = parser.parse_args()
     server = MerchantServer(MLMerchant())
