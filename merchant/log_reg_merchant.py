@@ -12,12 +12,12 @@ import pandas as pd
 import numpy as np
 
 
-MODELS_FILE = 'models.pkl'
+MODELS_FILE = 'log_reg_models.pkl'
 
 if os.getenv('API_TOKEN'):
     merchant_token = os.getenv('API_TOKEN')
 else:
-    merchant_token = 'Dci8SxLd3N6ixvT3XLhPKiGGryb5hpFtSx2uvOXyleijaCm7XUXrDn85ljATZPO2'
+    merchant_token = '0hjzYcmGQUKnCjtHKki3UN2BvMJouLBu2utbWgqwBBkNuefFOOJslK4hgOWbihWl'
 
 settings = {
     'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),
@@ -29,7 +29,7 @@ settings = {
     'shipping': 2,
     'primeShipping': 1,
     'max_req_per_sec': 10.0,
-    'learning_interval': 1.0,
+    'learning_interval': 2.0,
 }
 
 
@@ -52,9 +52,11 @@ def save_features(features_per_situation):
 class MLMerchant(SuperMerchant):
     def __init__(self):
         super().__init__(merchant_token, settings)
-        # download_data_and_aggregate(merchant_token, self.merchant_id)
-        # raise
-        self.initial_learning()
+        if os.path.isfile(MODELS_FILE):
+            self.machine_learning()
+            self.last_learning = datetime.datetime.now()
+        else:
+            self.initial_learning()
         self.run_logic_loop()
 
     def initial_learning(self):

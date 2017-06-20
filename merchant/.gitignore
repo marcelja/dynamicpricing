@@ -1,3 +1,6 @@
+# pickle models
+*.pkl
+
 # Mac
 .DS_Store
 

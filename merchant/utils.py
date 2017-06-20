@@ -72,6 +72,7 @@ def download_data_and_aggregate(merchant_token, merchant_id):
 def aggregate(market_situation, sales, merchant_id):
     global vectors
     logging.debug('Starting data aggregation')
+
     timestamp = market_situation[0]['timestamp']
     current_offers = []
     sales_counter = 0
