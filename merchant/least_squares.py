@@ -75,6 +75,8 @@ class LeastSquares(MerchantBaseLogic):
         self.highest_product_price = -1
         self.lowest_product_price = -1
         self.our_merchant_id = 0
+        self.newest_bo_timestamp = None
+        self.newest_ms_timestamp = None
 
         self.x_prices = {}
         self.read_csv_file()
@@ -110,12 +112,18 @@ class LeastSquares(MerchantBaseLogic):
 
     def group_data_by_timestamp(self):
         for ms_entry in self.market_situation:
+            timestamp = datetime.strptime(ms_entry['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ")
+            if self.newest_ms_timestamp is None or self.newest_ms_timestamp < timestamp:
+                self.newest_ms_timestamp = timestamp
             if ms_entry['timestamp'] not in self.market_situation_at_time:
                 self.market_situation_at_time[ms_entry['timestamp']] = []
             self.market_situation_at_time[ms_entry['timestamp']].append(ms_entry)
             if float(ms_entry['price']) > self.highest_product_price:
                 self.highest_product_price = float(ms_entry['price'])
         for bo_entry in self.buy_offer:
+            timestamp = datetime.strptime(bo_entry['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ")
+            if self.newest_bo_timestamp is None or self.newest_bo_timestamp < timestamp:
+                self.newest_bo_timestamp = timestamp
             if bo_entry['timestamp'] not in self.buy_offer_at_time:
                 self.buy_offer_at_time[bo_entry['timestamp']] = []
             self.buy_offer_at_time[bo_entry['timestamp']].append(bo_entry)
@@ -192,6 +200,7 @@ class LeastSquares(MerchantBaseLogic):
 
     def execute_logic(self):
         try:
+            self.update_training_data()
             offers = self.marketplace_api.get_offers()
             missing_offers = self.settings["initialProducts"] - len(self.offers)
 
@@ -210,16 +219,15 @@ class LeastSquares(MerchantBaseLogic):
         return settings['maxReqPerSec'] / 10
 
     def calculate_prices(self, marketplace_offers, purchase_price, product_id):
-        self.update_training_data()
         if product_id in self.x_prices.keys():
             print("Calculate price on historic data...")
             new_price = float(fmin(self.f, 0, (product_id,)))
         else:
             print("Calculate price on purchase price...")
-            new_price = purchase_price
+            new_price = purchase_price * 1.7
         print("New Price: {}".format(new_price))
 
-        if new_price < purchase_price:
+        if new_price < (purchase_price * 1.3):
             new_price = purchase_price
 
         return new_price
@@ -276,18 +284,14 @@ class LeastSquares(MerchantBaseLogic):
         print("Downloaded training data!")
         if downloaded_csvs is None:
             return
-        print("Create records...")
         new_market_situation = downloaded_csvs['marketSituation'].to_records()
         new_buy_offer = downloaded_csvs['buyOffer'].to_records()
-        print("Created records")
-        ms_to_append = [self.convert_kafka_market_situation_row_to_internal_object(ms) for ms in new_market_situation]
-        bo_to_append = [self.convert_kafka_buy_offer_row_to_internal_object(bo) for bo in new_buy_offer]
-        print("Created arrays")
+        ms_to_append = self.convert_kafka_market_situation_to_internal_object(new_market_situation)
+        bo_to_append = self.convert_kafka_buy_offer_row_to_internal_object(new_buy_offer)
         self.update_ms_training_data(ms_to_append)
         self.update_bo_training_data(bo_to_append)
 
     def update_ms_training_data(self, downloaded_ms_data):
-        print("update ms training data...")
         timestamps_of_new_ms = []
         for ms in downloaded_ms_data:
             if ms['timestamp'] not in timestamps_of_new_ms and ms['timestamp'] not in self.market_situation_at_time.keys():
@@ -295,17 +299,14 @@ class LeastSquares(MerchantBaseLogic):
                 self.market_situation.append(ms)
                 self.market_situation_at_time[ms['timestamp']] = []
                 self.market_situation_at_time[ms['timestamp']].append(ms)
-                print("updated ms, update training data... (1)")
                 self.update_training_data_from_market_situation([ms])
             elif ms['timestamp'] in timestamps_of_new_ms:
                 self.market_situation.append(ms)
                 self.market_situation_at_time[ms['timestamp']].append(ms)
-                print("updated ms, update training data... (2)")
                 self.update_training_data_from_market_situation([ms])
         print("Finished updating MS training data")
 
     def update_bo_training_data(self, downloaded_bo_data):
-        print("update bo training data...")
         timestamps_of_new_bo = []
         for bo in downloaded_bo_data:
             if bo['timestamp'] not in timestamps_of_new_bo and bo['timestamp'] not in self.buy_offer_at_time.keys():
@@ -313,12 +314,10 @@ class LeastSquares(MerchantBaseLogic):
                 self.buy_offer.append(bo)
                 self.buy_offer_at_time[bo['timestamp']] = []
                 self.buy_offer_at_time[bo['timestamp']].append(bo)
-                print("updated bo, update training data... (1)")
                 self.update_training_data_from_buy_offer(self.convert_bo_to_sale(bo))
             elif bo['timestamp'] in timestamps_of_new_bo:
                 self.buy_offer.append(bo)
                 self.buy_offer_at_time[bo['timestamp']].append(bo)
-                print("updated bo, update training data... (2)")
                 self.update_training_data_from_buy_offer(self.convert_bo_to_sale(bo))
         print("Finished updating BO training data")
 
@@ -327,40 +326,60 @@ class LeastSquares(MerchantBaseLogic):
             self.x_prices[bo['product_id']] = []
         self.x_prices[bo['product_id']].append(bo)
 
-    def convert_kafka_buy_offer_row_to_internal_object(self, row):
-        if row[3] != 200:  # http code
-            return None
-        return {'amount': row[1], 'consumer_id': row[2], 'left_in_stock': row[4], 'merchant_id': row[5], 'offer_id': row[6], 'price': row[7], 'product_id': row[8], 'quality': row[9],
-                'timestamp': row[10]}
+    def convert_kafka_buy_offer_row_to_internal_object(self, new_buy_offer):
+        result = []
+        newest_timestamp = self.newest_bo_timestamp
+        for row in new_buy_offer:
+            if row[3] != 200:  # http code
+                continue
+            timestamp = datetime.strptime(row[10], "%Y-%m-%dT%H:%M:%S.%fZ")
+            if timestamp > self.newest_bo_timestamp:  # filter old entries
+                result.append(
+                    {'amount': row[1], 'consumer_id': row[2], 'left_in_stock': row[4], 'merchant_id': row[5], 'offer_id': row[6], 'price': row[7], 'product_id': row[8], 'quality': row[9],
+                     'timestamp': row[10]})
+                if timestamp > newest_timestamp:
+                    newest_timestamp = timestamp
+        self.newest_bo_timestamp = newest_timestamp
+        return result
 
-    def convert_kafka_market_situation_row_to_internal_object(self, row):
-        return {'amount': row[1], 'merchant_id': row[2], 'offer_id': row[3], 'price': row[4], 'prime': row[5], 'product_id': row[6], 'quality': row[7], 'shipping_time_prime': row[8],
-                'shipping_time_standard': row[9], 'timestamp': row[10], 'triggering_merchant_id': row[11]}
+    def convert_kafka_market_situation_to_internal_object(self, new_market_situation):
+        result = []
+        newest_timestamp = self.newest_ms_timestamp
+        for row in new_market_situation:
+            timestamp = datetime.strptime(row[10], "%Y-%m-%dT%H:%M:%S.%fZ")
+            if timestamp > self.newest_ms_timestamp:  # filter old entries
+                result.append(
+                    {'amount': row[1], 'merchant_id': row[2], 'offer_id': row[3], 'price': row[4], 'prime': row[5], 'product_id': row[6], 'quality': row[7], 'shipping_time_prime': row[8],
+                     'shipping_time_standard': row[9], 'timestamp': row[10], 'triggering_merchant_id': row[11]})
+                if timestamp > newest_timestamp:
+                    newest_timestamp = timestamp
+        self.newest_ms_timestamp = newest_timestamp
+        return result
 
     def update_training_data_from_market_situation(self, market_situation):
-        print("Update training data from market situation...")
         for ms in market_situation:
             previous_ms = self.find_previous_ms(market_situation, ms['product_id'], ms['merchant_id'], ms['timestamp'])
-            print("Did not find find ")
             if previous_ms is None and self.market_situation != market_situation:
-                previous_ms = self.find_previous_ms(self.market_situation, ms['product_id'], ms['merchant_id'], ms['timestamp'])
-            print("Found previous ms: {}".format(previous_ms))
+                previous_ms = self.find_previous_ms(self.market_situation, ms['product_id'], ms['merchant_id'], ms['timestamp'], 20)
             if previous_ms is None:
                 return
             if int(previous_ms['amount']) > int(ms['amount']):
                 self.update_training_data_from_buy_offer(self.convert_ms_to_sale(previous_ms))
-        print("Updated training data from market situation!")
 
-    def find_previous_ms(self, market_situation, product_id, merchant_id, timestamp):
+    def find_previous_ms(self, market_situation, product_id, merchant_id, timestamp, limit=-1):
         previous_ms = []
-        for ms in market_situation:
-            if ms['product_id'] == product_id and ms['merchant_id'] == merchant_id and datetime.strptime(ms['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.strptime(timestamp,
-                                                                                                                                                                       "%Y-%m-%dT%H:%M:%S.%fZ"):
+        converted_timestamp = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+        for i_ms, ms in reversed(list(enumerate(market_situation))):
+            if limit > -1 and i_ms < len(market_situation) - limit:
+                break
+            if ms['product_id'] == product_id and ms['merchant_id'] == merchant_id and datetime.strptime(ms['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ") < converted_timestamp:
                 previous_ms.append(ms)
         ms_max_timestamp = None
+        max_timestamp = None
         for ms in previous_ms:
-            if ms_max_timestamp is None or datetime.strptime(ms_max_timestamp['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.strptime(ms['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ"):
+            if ms_max_timestamp is None or max_timestamp < datetime.strptime(ms['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ"):
                 ms_max_timestamp = ms
+                max_timestamp = datetime.strptime(ms_max_timestamp['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ")
         return ms_max_timestamp
 
     def convert_ms_to_sale(self, ms):
