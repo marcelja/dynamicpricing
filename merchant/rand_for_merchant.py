@@ -10,6 +10,7 @@ import datetime
 import logging
 import pandas as pd
 import numpy as np
+import random
 
 
 MODELS_FILE = 'rand_for_models.pkl'
@@ -17,7 +18,7 @@ MODELS_FILE = 'rand_for_models.pkl'
 if os.getenv('API_TOKEN'):
     merchant_token = os.getenv('API_TOKEN')
 else:
-    merchant_token = 'gEPQr8vESY0c3VEslIPZlATLwuATutsb8I30PyErWEUZjiSV1r5m2Y8yTISOCK0K'
+    merchant_token = 'be4dv7eAniTFCD5nA4gXBMM6lpUkTpV5UZhQgMaU54jIHo6Rtmx58KBuBffeWBj1'
 
 settings = {
     'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),
@@ -34,17 +35,11 @@ settings = {
 
 
 def load_history():
-    # Next line can be removed, when csv learning is implemented
-    if os.path.exists(MODELS_FILE):
-        with open(MODELS_FILE, 'rb') as m:
-            models = pickle.load(m)
-    else:
-        models = dict()
-    return models
+    with open(MODELS_FILE, 'rb') as m:
+        return pickle.load(m)
 
 
 def save_features(features_per_situation):
-    # This might not work so far
     with open(MODELS_FILE, 'wb') as m:
         pickle.dump(features_per_situation, m)
 
@@ -69,19 +64,21 @@ class MLMerchant(SuperMerchant):
     def machine_learning(self):
         history = load_history()
         features_per_situation = download_data_and_aggregate(merchant_token, self.merchant_id)
-        # TODO does that work ??
-        history.update(features_per_situation)
-        save_features(features_per_situation)
-        models = self.train_model(features_per_situation)
-
-        return models
+        if features_per_situation:
+            # TODO does that work ??
+            try:
+                history.update(features_per_situation)
+            except Exception:
+                print(features_per_situation)
+            save_features(features_per_situation)
+            self.product_models = self.train_model(features_per_situation)
 
     def execute_logic(self):
         next_training_session = self.last_learning \
             + datetime.timedelta(minutes=self.settings['learning_interval'])
         if next_training_session <= datetime.datetime.now():
             self.last_learning = datetime.datetime.now()
-            self.product_models = self.machine_learning()
+            self.machine_learning()
 
         request_count = 0
 
@@ -129,7 +126,9 @@ class MLMerchant(SuperMerchant):
                         self.marketplace_api.restock(offer.offer_id, amount=product.amount, signature=product.signature)
                     except Exception as e:
                         print('error on restocking an offer:', e)
-                    offer.price = self.calculate_optimal_price(product, product_prices_by_uid, current_offers=offers)
+                    pr = self.calculate_optimal_price(own_offer, product_prices_by_uid, current_offers=offers)
+                    print("price is: {}".format(pr))
+                    own_offer.price = pr
                     try:
                         self.marketplace_api.update_offer(offer)
                         request_count += 1
@@ -142,6 +141,7 @@ class MLMerchant(SuperMerchant):
                     offer.shipping_time['prime'] = self.settings['primeShipping']
                     offer.merchant_id = self.merchant_id
                     offer.price = self.calculate_optimal_price(product, product_prices_by_uid, current_offers=offers+[offer])
+                    print("price is: {}".format(offer.price))
                     try:
                         self.marketplace_api.add_offer(offer)
                     except Exception as e:
@@ -158,11 +158,13 @@ class MLMerchant(SuperMerchant):
         :param current_offers: list of offers
         :return:
         """
-        print("calc optimal price")
 
         price = product_prices_by_uid[product.uid]
+
+        if random.uniform(0, 1) < 0.3:
+            print("RAND \n\n\n\n\n")
+            return (random.randint(price * 100, 10000) / 100)
         try:
-            # model = self.model_products[product.product_id]
             model = self.product_models[str(product.product_id)]
 
             offer_df = pd.DataFrame([o.to_dict() for o in current_offers])
@@ -176,16 +178,7 @@ class MLMerchant(SuperMerchant):
                 offer_df.loc[own_offers_mask, 'price'] = potential_price
                 features.append(extract_features_from_offer_snapshot(potential_price, current_offers, self.merchant_id,
                                                                      product.product_id))
-            # data = pd.DataFrame(features).dropna()
-            # TODO: could be second row, currently
-            try:
-                pass
-                # filtered = data[['amount_of_all_competitors',
-                #                  'average_price_on_market',
-                #                  'distance_to_cheapest_competitor',
-                #                  'price_rank',
-                #                  'quality_rank',
-                #                  ]]
+
                 probas = model.predict(features)
                 max_expected_profit = 0
                 for i, f in enumerate(features):
@@ -195,14 +188,10 @@ class MLMerchant(SuperMerchant):
                         best_price = f[0]
                 print(best_price)
                 return best_price
-            except Exception as e:
-                print(e)
         except (KeyError, ValueError) as e:
             # Fallback for new porduct
             print("RANDOMMMMMMMMM")
             return price * (np.random.exponential() + 0.99)
-        except Exception as e:
-            pass
 
     def train_model(self, features):
         # TODO include time and amount of sold items to featurelist
@@ -224,7 +213,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PriceWars Merchant doing fancy ML')
     parser.add_argument('--port',
                         type=int,
-                        default=5102,
+                        default=5103,
                         help='Port to bind flask App to, default is 5100')
     args = parser.parse_args()
     server = MerchantServer(MLMerchant())

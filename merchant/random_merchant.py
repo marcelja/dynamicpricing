@@ -8,13 +8,14 @@ from merchant_sdk import MerchantBaseLogic, MerchantServer
 from merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
 from merchant_sdk.models import Offer
 from SuperMerchant import SuperMerchant
+import random
 
 # not sure, whether this token stuff brakes something
 
 if os.getenv('API_TOKEN'):
     merchant_token = os.getenv('API_TOKEN')
 else:
-    merchant_token = '2ZnJAUNCcv8l2ILULiCwANo7LGEsHCRJlFdvj18MvG8yYTTtCfqN3fTOuhGCthWf'
+    merchant_token = '7xCvFloHDuwm9iHDVYpjjoVzlXue01I7yU3EGsVTnSGwAXAg6yQqnvpZTkEUlWbk'
 
 settings = {
     'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),
@@ -28,7 +29,7 @@ settings = {
 }
 
 
-class RuleBasedMerchant(SuperMerchant):
+class RandomMerchant(SuperMerchant):
 
     def __init__(self):
         super().__init__(merchant_token, settings)
@@ -65,27 +66,15 @@ class RuleBasedMerchant(SuperMerchant):
         return settings['maxReqPerSec'] / 10
 
     def calculate_prices(self, marketplace_offers, product_uid, purchase_price, product_id):
-        competitive_offers = []
-        [competitive_offers.append(offer) for offer in marketplace_offers if offer.merchant_id != self.merchant_id and offer.product_id == product_id]
-        cheapest_offer = 999
-
-        if len(competitive_offers) == 0:
-            return 2 * purchase_price
-        for offer in competitive_offers:
-            if offer.price < cheapest_offer:
-                cheapest_offer = offer.price
-
-        new_price = cheapest_offer - settings['underprice']
-        if new_price < purchase_price:
-            new_price = purchase_price
-
-        return new_price
+        price = random.randint(purchase_price * 100, 10000) / 100
+        print("price is: {}".format(price))
+        return price
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='PriceWars Merchant Being Cheapest')
-    parser.add_argument('--port', type=int,
+    parser = argparse.ArgumentParser(description='PriceWars Merchant Being Random')
+    parser.add_argument('--port', type=int, default=5104,
                         help='port to bind flask App to')
     args = parser.parse_args()
-    server = MerchantServer(RuleBasedMerchant())
+    server = MerchantServer(RandomMerchant())
     app = server.app
     app.run(host='0.0.0.0', port=args.port)
