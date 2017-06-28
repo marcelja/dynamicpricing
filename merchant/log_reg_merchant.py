@@ -4,7 +4,7 @@ from merchant_sdk import MerchantBaseLogic, MerchantServer
 from merchant_sdk.models import Offer
 import argparse
 import pickle
-from utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot
+from utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot, TrainingData
 from sklearn.linear_model import LogisticRegression
 import datetime
 import logging
@@ -19,6 +19,7 @@ if os.getenv('API_TOKEN'):
     merchant_token = os.getenv('API_TOKEN')
 else:
     merchant_token = '0hjzYcmGQUKnCjtHKki3UN2BvMJouLBu2utbWgqwBBkNuefFOOJslK4hgOWbihWl'
+print(merchant_token)
 
 settings = {
     'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),
@@ -47,12 +48,23 @@ def save_features(features_per_situation):
 class MLMerchant(SuperMerchant):
     def __init__(self):
         super().__init__(merchant_token, settings)
-        if os.path.isfile(MODELS_FILE):
-            self.machine_learning()
-            self.last_learning = datetime.datetime.now()
-        else:
-            self.initial_learning()
-        self.run_logic_loop()
+
+        td = TrainingData(merchant_token)
+        td.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv')
+        # features_per_situation = download_data_and_aggregate(merchant_token, self.merchant_id)
+        td.append_by_kafka()
+        td.append_by_kafka('../data/marketSituation_kafka.csv', '../data/buyOffer_kafka.csv')
+
+
+
+
+
+        # if os.path.isfile(MODELS_FILE):
+        #     self.machine_learning()
+        #     self.last_learning = datetime.datetime.now()
+        # else:
+        #     self.initial_learning()
+        # self.run_logic_loop()
 
     def initial_learning(self):
         features_per_situation = learn_from_csvs(merchant_token)

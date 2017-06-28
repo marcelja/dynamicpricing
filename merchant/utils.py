@@ -19,6 +19,69 @@ INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
 INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
 
 
+class TrainingData():
+    def __init__(self, merchant_token, market_situations_json=None, sales_json=None):
+        self.market_situations = dict()
+        self.sales = dict()
+        self.merchant_token = merchant_token
+
+    def create_training_data(self, product_id, interval_length=5):
+
+        return [], [[]]
+
+    def print_info(self):
+        distinct_timestamps = len(self.market_situations.keys())
+        print(distinct_timestamps)
+
+    def store_as_json(self):
+        pass
+
+    def append_marketplace_situations(self, line):
+        print("marketsituation")
+
+    def append_sales(self, line):
+        print("sales")
+
+    def append_by_csvs(self, market_situations_path, buy_offer_path):
+        with open(market_situations_path, 'r') as csvfile:
+            situation_data = csv.DictReader(csvfile)
+            for line in situation_data:
+                self.append_marketplace_situations(line)
+
+        with open(buy_offer_path, 'r') as csvfile:
+            buy_offer_data = csv.DictReader(csvfile)
+            for line in buy_offer_data:
+                self.append_sales(line)
+
+    def download_kafka_files(self):
+        PricewarsRequester.add_api_token(self.merchant_token)
+        logging.debug('Downloading files from Kafka ...')
+        kafka_url = os.getenv('PRICEWARS_KAFKA_REVERSE_PROXY_URL', 'http://127.0.0.1:8001')
+        kafka_api = KafkaApi(host=kafka_url)
+        data_url_ms = kafka_api.request_csv_export_for_topic('marketSituation')
+        data_url_bo = kafka_api.request_csv_export_for_topic('buyOffer')
+        return requests.get(data_url_ms, timeout=2), requests.get(data_url_bo, timeout=2)
+
+    def append_by_kafka(self, market_situations_path=None, buy_offer_path=None):
+        ########## use kafka example files
+        if market_situations_path and buy_offer_path:
+            self.append_by_csvs(market_situations_path, buy_offer_path)
+            return
+        #############
+
+        ms, bo = self.download_kafka_files()
+        if ms.status_code != 200 or bo.status_code != 200:
+            print("Kafka download failed")
+            return
+
+        situation_data = csv.DictReader(ms.text.split("\n"))
+        for line in situation_data:
+            self.append_marketplace_situations(line)
+        buy_offer_data = csv.DictReader(bo.text.split("\n"))
+        for line in buy_offer_data:
+            self.append_sales(line)
+
+
 def learn_from_csvs(token):
     logging.debug('Reading csv files')
     market_situation = []
