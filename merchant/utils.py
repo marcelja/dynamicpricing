@@ -13,6 +13,7 @@ import datetime
 import csv
 from collections import defaultdict
 import requests
+import bisect
 
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
@@ -20,7 +21,29 @@ INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
 
 
 class TrainingData():
-    def __init__(self, merchant_token, market_situations_json=None, sales_json=None):
+    """
+    self.market_situations =
+    {
+        product_id: {
+            timestamp: {
+                merchant_id: {
+                    offer_id: [ price, quality, ...]
+                }
+            }
+        }
+    }
+
+    self.sales =
+    {
+        product_id: {
+            timestamp: {
+                offer_id: [ price, quality, ... ]
+            }
+
+        }
+    } """
+    def __init__(self, merchant_token, market_situations_json=None,
+                 sales_json=None):
         self.market_situations = dict()
         self.sales = dict()
         self.merchant_token = merchant_token
@@ -30,17 +53,64 @@ class TrainingData():
         return [], [[]]
 
     def print_info(self):
-        distinct_timestamps = len(self.market_situations.keys())
-        print(distinct_timestamps)
+        timestamps_ms = []
+        counter_ms = 0
+        for product in self.market_situations.values():
+            for timestamp, merchant in product.items():
+                bisect.insort(timestamps_ms, timestamp)
+                for offer in merchant.values():
+                    counter_ms += len(offer.keys())
+        timestamps_s = []
+        counter_s = 0
+        for product in self.sales.values():
+            for timestamp, offer in product.items():
+                bisect.insort(timestamps_s, timestamp)
+                counter_s += len(offer.keys())
+
+        print("\nTraining data: \n\tEntries market_situations: {} \
+               \n\tEntries sales: {} \
+               \n\nmarket_situations: \
+               \n\tDistinct timestamps: {} \
+               \n\tFirst timestamp: {} \
+               \n\tLast timestamp: {} \
+               \n\nsales: \
+               \n\tFirst timestamp: {} \
+               \n\tLast timestamp: {} \n\
+               ".format(counter_ms, counter_s, len(timestamps_ms),
+                        timestamps_ms[0], timestamps_ms[-1], timestamps_s[0],
+                        timestamps_s[-1]))
 
     def store_as_json(self):
         pass
 
     def append_marketplace_situations(self, line):
-        print("marketsituation")
+        """ Return 1 if offer already exists in self.market_situations. """
+        dict_keys = [line["product_id"], line["timestamp"], line["merchant_id"]]
+        ms = self.market_situations
+        for dk in dict_keys:
+            if dk not in ms:
+                ms[dk] = dict()
+            ms = ms[dk]
+        if line["offer_id"] in ms:
+            return 1
+        else:
+            # TODO Add shipping_time, prime, etc.
+            ms[line["offer_id"]] = [line["price"], line["quality"]]
+            return 0
 
     def append_sales(self, line):
-        print("sales")
+        """ Return 1 if offer already exists in self.sales. """
+        dict_keys = [line["product_id"], line["timestamp"]]
+        s = self.sales
+        for dk in dict_keys:
+            if dk not in s:
+                s[dk] = dict()
+            s = s[dk]
+        if line["offer_id"] in s:
+            return 1
+        else:
+            s[line["offer_id"]] = [line["price"], line["quality"]]
+            return 0
 
     def append_by_csvs(self, market_situations_path, buy_offer_path):
         with open(market_situations_path, 'r') as csvfile:
@@ -54,8 +124,8 @@ class TrainingData():
                 self.append_sales(line)
 
     def download_kafka_files(self):
-        PricewarsRequester.add_api_token(self.merchant_token)
         logging.debug('Downloading files from Kafka ...')
+        PricewarsRequester.add_api_token(self.merchant_token)
         kafka_url = os.getenv('PRICEWARS_KAFKA_REVERSE_PROXY_URL', 'http://127.0.0.1:8001')
         kafka_api = KafkaApi(host=kafka_url)
         data_url_ms = kafka_api.request_csv_export_for_topic('marketSituation')
@@ -69,9 +139,13 @@ class TrainingData():
             return
         #############
 
-        ms, bo = self.download_kafka_files()
+        try:
+            ms, bo = self.download_kafka_files()
+        except Exception as e:
+            logging.warning('Could not download data from kafka: {}'.format(e))
+            return
         if ms.status_code != 200 or bo.status_code != 200:
-            print("Kafka download failed")
+            logging.warning("Kafka download failed")
             return
 
         situation_data = csv.DictReader(ms.text.split("\n"))

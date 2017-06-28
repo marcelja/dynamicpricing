@@ -51,20 +51,18 @@ class MLMerchant(SuperMerchant):
 
         td = TrainingData(merchant_token)
         td.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv')
-        # features_per_situation = download_data_and_aggregate(merchant_token, self.merchant_id)
-        td.append_by_kafka()
+        td.print_info()
+        # td.append_by_kafka()
+        # td.print_info()
         td.append_by_kafka('../data/marketSituation_kafka.csv', '../data/buyOffer_kafka.csv')
+        td.print_info()
 
-
-
-
-
-        # if os.path.isfile(MODELS_FILE):
-        #     self.machine_learning()
-        #     self.last_learning = datetime.datetime.now()
-        # else:
-        #     self.initial_learning()
-        # self.run_logic_loop()
+        if os.path.isfile(MODELS_FILE):
+            self.machine_learning()
+            self.last_learning = datetime.datetime.now()
+        else:
+            self.initial_learning()
+        self.run_logic_loop()
 
     def initial_learning(self):
         features_per_situation = learn_from_csvs(merchant_token)
