@@ -14,6 +14,7 @@ import csv
 from collections import defaultdict
 import requests
 import bisect
+import json
 
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
@@ -81,7 +82,10 @@ class TrainingData():
                         timestamps_s[-1]))
 
     def store_as_json(self):
-        pass
+        data = {"market_situations": self.market_situations,
+                "sales": self.sales}
+        with open('training_data.json', 'w') as fp:
+            json.dump(data, fp)
 
     def append_marketplace_situations(self, line):
         """ Return 1 if offer already exists in self.market_situations. """
