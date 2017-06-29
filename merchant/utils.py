@@ -12,10 +12,201 @@ import math
 sys.path.append('./')
 sys.path.append('../')
 from merchant_sdk.api import KafkaApi, PricewarsRequester
+import bisect
+import json
 
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
 INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
+
+
+class TrainingData():
+    """
+    self.market_situations =
+    {
+        product_id: {
+            timestamp: {
+                merchant_id: {
+                    offer_id: [ price, quality, ...]
+                }
+            }
+        }
+    }
+
+    self.sales =
+    {
+        product_id: {
+            timestamp: {
+                offer_id: 1 // 1 or higher
+            }
+        }
+    } """
+    def __init__(self, merchant_token, merchant_id,
+                 market_situations_json=None, sales_json=None):
+        self.market_situations = dict()
+        self.sales = dict()
+        self.merchant_token = merchant_token
+        self.merchant_id = merchant_id
+        self.merchant_id = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
+        self.timestamps = []
+
+    def update_timestamps(self):
+        timestamps = set()
+        for product in self.market_situations.values():
+            for timestamp in product.keys():
+                timestamps.add(timestamp)
+        self.timestamps = sorted(timestamps)
+
+    def create_training_data(self, product_id, interval_length=5):
+        self.update_timestamps()
+        product = self.market_situations[product_id]
+        sales_vector = []
+        features_vector = []
+
+        for timestamp, merchants in product.items():
+            offer_list = []
+            # [ [offer_id, price, quality] ]
+            for offers in merchants.values():
+                for offer_id, attributes in offers.items():
+                    offer_list.append([offer_id, attributes[0], attributes[1]])
+
+            if self.merchant_id in merchants:
+                for offer_id in merchants[self.merchant_id].keys():
+                    sales_vector.append(self.extract_sales(product_id,
+                                                           offer_id,
+                                                           timestamp))
+                    features_vector.append(self.extract_features(offer_id,
+                                                                 offer_list))
+        return sales_vector, features_vector
+
+    def extract_features(self, offer_id, offer_list):
+        # [ [offer_id, price, quality] ]
+        current_offer = [x for x in offer_list if offer_id == x[0]][0]
+        other_offers = [x for x in offer_list if offer_id != x[0]]
+        rank = 1
+        for oo in other_offers:
+            if oo[1] < current_offer[1]:
+                rank += 1
+        return [rank]
+
+    def extract_sales(self, product_id, offer_id, timestamp):
+        if timestamp not in self.sales[product_id]:
+            return 0
+        if offer_id not in self.sales[product_id][timestamp]:
+            return 0
+        if self.sales[product_id][timestamp][offer_id] > 0:
+            return 1
+        return 0
+
+    def print_info(self):
+        timestamps_ms = set()
+        counter_ms = 0
+        for product in self.market_situations.values():
+            for timestamp, merchant in product.items():
+                timestamps_ms.add(timestamp)
+                for offer in merchant.values():
+                    counter_ms += len(offer.keys())
+        timestamps_s = set()
+        counter_s = 0
+        counter_s_same_timestamp = 0
+        for product in self.sales.values():
+            for timestamp, offers in product.items():
+                timestamps_s.add(timestamp)
+                counter_s += len(offers.keys())
+                for o in offers.values():
+                    if o > 1:
+                        counter_s_same_timestamp += 1
+        timestamps_ms = sorted(timestamps_ms)
+        timestamps_s = sorted(timestamps_s)
+
+        print('\nTraining data: \n\tEntries market_situations: {} \
+               \n\tEntries sales: {} \
+               \n\nmarket_situations: \
+               \n\tDistinct timestamps: {} \
+               \n\tFirst timestamp: {} \
+               \n\tLast timestamp: {} \
+               \n\nsales: \
+               \n\tFirst timestamp: {} \
+               \n\tLast timestamp: {} \
+               \n\tMultiple sale events in one interval: {} \n\
+               '.format(counter_ms, counter_s, len(timestamps_ms),
+                        timestamps_ms[0], timestamps_ms[-1], timestamps_s[0],
+                        timestamps_s[-1], counter_s_same_timestamp))
+
+    def store_as_json(self):
+        data = {'market_situations': self.market_situations,
+                'sales': self.sales}
+        with open('training_data.json', 'w') as fp:
+            json.dump(data, fp)
+
+    def append_marketplace_situations(self, line):
+        dict_keys = [line['product_id'], line['timestamp'], line['merchant_id']]
+        ms = self.market_situations
+        for dk in dict_keys:
+            if dk not in ms:
+                ms[dk] = dict()
+            ms = ms[dk]
+        if line['offer_id'] not in ms:
+            ms[line['offer_id']] = [float(line['price']), line['quality']]
+
+    def append_sales(self, line):
+        index = bisect.bisect(self.timestamps, line['timestamp']) - 1
+        timestamp = self.timestamps[index]
+        dict_keys = [line['product_id'], timestamp]
+        s = self.sales
+        for dk in dict_keys:
+            if dk not in s:
+                s[dk] = dict()
+            s = s[dk]
+        if line['offer_id'] in s:
+            s[line['offer_id']] = s[line['offer_id']] + 1
+        else:
+            s[line['offer_id']] = 1
+
+    def append_by_csvs(self, market_situations_path, buy_offer_path):
+        with open(market_situations_path, 'r') as csvfile:
+            situation_data = csv.DictReader(csvfile)
+            for line in situation_data:
+                self.append_marketplace_situations(line)
+        self.update_timestamps()
+
+        with open(buy_offer_path, 'r') as csvfile:
+            buy_offer_data = csv.DictReader(csvfile)
+            for line in buy_offer_data:
+                self.append_sales(line)
+
+    def download_kafka_files(self):
+        logging.debug('Downloading files from Kafka ...')
+        PricewarsRequester.add_api_token(self.merchant_token)
+        kafka_url = os.getenv('PRICEWARS_KAFKA_REVERSE_PROXY_URL', 'http://127.0.0.1:8001')
+        kafka_api = KafkaApi(host=kafka_url)
+        data_url_ms = kafka_api.request_csv_export_for_topic('marketSituation')
+        data_url_bo = kafka_api.request_csv_export_for_topic('buyOffer')
+        return requests.get(data_url_ms, timeout=2), requests.get(data_url_bo, timeout=2)
+
+    def append_by_kafka(self, market_situations_path=None, buy_offer_path=None):
+        ########## use kafka example files
+        if market_situations_path and buy_offer_path:
+            self.append_by_csvs(market_situations_path, buy_offer_path)
+            return
+        #############
+
+        try:
+            ms, bo = self.download_kafka_files()
+        except Exception as e:
+            logging.warning('Could not download data from kafka: {}'.format(e))
+            return
+        if ms.status_code != 200 or bo.status_code != 200:
+            logging.warning('Kafka download failed')
+            return
+
+        situation_data = csv.DictReader(ms.text.split('\n'))
+        for line in situation_data:
+            self.append_marketplace_situations(line)
+        self.update_timestamps()
+        buy_offer_data = csv.DictReader(bo.text.split('\n'))
+        for line in buy_offer_data:
+            self.append_sales(line)
 
 
 def learn_from_csvs(token):
@@ -23,14 +214,12 @@ def learn_from_csvs(token):
     market_situation = []
     sales = []
     with open(INITIAL_MARKETSITUATION_CSV_PATH, 'r') as csvfile:
-        fieldnames = ['amount', 'merchant_id', 'offer_id', 'price', 'prime', 'product_id', 'quality', ' shipping_time_prime', 'shipping_time_standard', 'timestamp', 'triggering_merchant_id', 'uid']
-        situation_reader = csv.DictReader(csvfile, fieldnames=fieldnames)
+        situation_reader = csv.DictReader(csvfile)
         for situation in situation_reader:
             market_situation.append(situation)
 
     with open(INITIAL_BUYOFFER_CSV_PATH, 'r') as csvfile:
-        fieldnames = ['amount', 'consumer_id', 'http_code', 'left_in_stock', 'merchant_id', 'offer_id', 'price', 'product_id', 'quality', 'timestamp', 'uid']
-        sales_reader = csv.DictReader(csvfile, fieldnames=fieldnames)
+        sales_reader = csv.DictReader(csvfile)
         for sale in sales_reader:
             sales.append(sale)
     logging.debug('Finished reading of csv files')
@@ -142,7 +331,7 @@ def calculate_price_rank(price_list, own_price):
 
 
 def to_timestamp(timestamp):
-    return datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    return datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
 
 
 def calculate_min_price(offers):
