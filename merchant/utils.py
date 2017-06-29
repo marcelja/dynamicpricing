@@ -48,41 +48,79 @@ class TrainingData():
         self.sales = dict()
         self.merchant_token = merchant_token
         self.merchant_id = merchant_id
+        self.merchant_id = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
+        self.timestamps = []
+
+    def update_timestamps(self):
+        timestamps = set()
+        for product in self.market_situations.values():
+            for timestamp in product.keys():
+                timestamps.add(timestamp)
+        self.timestamps = sorted(timestamps)
 
     def create_training_data(self, product_id, interval_length=5):
-        import pdb; pdb.set_trace()
+        self.update_timestamps()
         product = self.market_situations[product_id]
-
         sales_vector = []
         features_vector = []
 
-        c = 0
+        for timestamp, merchants in product.items():
+            offer_list = []
+            # [ [offer_id, price, quality] ]
+            for offers in merchants.values():
+                for offer_id, attributes in offers.items():
+                    offer_list.append([offer_id, attributes[0], attributes[1]])
 
-        for timestamp, values in product.items():
-            pass
+            if self.merchant_id in merchants:
+                for offer_id in merchants[self.merchant_id].keys():
+                    sales_vector.append(self.extract_sales(product_id,
+                                                           offer_id,
+                                                           timestamp))
+                    features_vector.append(self.extract_features(offer_id,
+                                                                 offer_list))
+        import pdb; pdb.set_trace()
+        return sales_vector, features_vector
 
-        return [], [[]]
+    def extract_features(self, offer_id, offer_list):
+        current_offer = [x for x in offer_list if offer_id == x[0]][0]
+        other_offers = [x for x in offer_list if offer_id != x[0]]
+        rank = 1
+        for oo in other_offers:
+            if oo[1] < current_offer[1]:
+                rank += 1
+        return [rank]
+
+    def extract_sales(self, product_id, offer_id, timestamp):
+        if timestamp not in self.sales[product_id]:
+            return 0
+        if offer_id not in self.sales[product_id][timestamp]:
+            return 0
+        if self.sales[product_id][timestamp][offer_id] > 0:
+            return 1
+        return 0
 
     def print_info(self):
-        timestamps_ms = []
+        timestamps_ms = set()
         counter_ms = 0
         for product in self.market_situations.values():
             for timestamp, merchant in product.items():
-                bisect.insort(timestamps_ms, timestamp)
+                timestamps_ms.add(timestamp)
                 for offer in merchant.values():
                     counter_ms += len(offer.keys())
-        timestamps_s = []
+        timestamps_s = set()
         counter_s = 0
         counter_s_same_timestamp = 0
         for product in self.sales.values():
             for timestamp, offers in product.items():
-                bisect.insort(timestamps_s, timestamp)
+                timestamps_s.add(timestamp)
                 counter_s += len(offers.keys())
                 for o in offers.values():
                     if o > 1:
                         counter_s_same_timestamp += 1
+        timestamps_ms = sorted(timestamps_ms)
+        timestamps_s = sorted(timestamps_s)
 
-        print("\nTraining data: \n\tEntries market_situations: {} \
+        print('\nTraining data: \n\tEntries market_situations: {} \
                \n\tEntries sales: {} \
                \n\nmarket_situations: \
                \n\tDistinct timestamps: {} \
@@ -91,44 +129,47 @@ class TrainingData():
                \n\nsales: \
                \n\tFirst timestamp: {} \
                \n\tLast timestamp: {} \
-               \n\tMultiple sale events at one timestamp: {} \n\
-               ".format(counter_ms, counter_s, len(timestamps_ms),
+               \n\tMultiple sale events in one interval: {} \n\
+               '.format(counter_ms, counter_s, len(timestamps_ms),
                         timestamps_ms[0], timestamps_ms[-1], timestamps_s[0],
                         timestamps_s[-1], counter_s_same_timestamp))
 
     def store_as_json(self):
-        data = {"market_situations": self.market_situations,
-                "sales": self.sales}
+        data = {'market_situations': self.market_situations,
+                'sales': self.sales}
         with open('training_data.json', 'w') as fp:
             json.dump(data, fp)
 
     def append_marketplace_situations(self, line):
-        dict_keys = [line["product_id"], line["timestamp"], line["merchant_id"]]
+        dict_keys = [line['product_id'], line['timestamp'], line['merchant_id']]
         ms = self.market_situations
         for dk in dict_keys:
             if dk not in ms:
                 ms[dk] = dict()
             ms = ms[dk]
-        if line["offer_id"] not in ms:
-            ms[line["offer_id"]] = [line["price"], line["quality"]]
+        if line['offer_id'] not in ms:
+            ms[line['offer_id']] = [float(line['price']), line['quality']]
 
     def append_sales(self, line):
-        dict_keys = [line["product_id"], line["timestamp"]]
+        index = bisect.bisect(self.timestamps, line['timestamp']) - 1
+        timestamp = self.timestamps[index]
+        dict_keys = [line['product_id'], timestamp]
         s = self.sales
         for dk in dict_keys:
             if dk not in s:
                 s[dk] = dict()
             s = s[dk]
-        if line["offer_id"] in s:
-            s[line["offer_id"]] = s[line["offer_id"]] + 1
+        if line['offer_id'] in s:
+            s[line['offer_id']] = s[line['offer_id']] + 1
         else:
-            s[line["offer_id"]] = 1
+            s[line['offer_id']] = 1
 
     def append_by_csvs(self, market_situations_path, buy_offer_path):
         with open(market_situations_path, 'r') as csvfile:
             situation_data = csv.DictReader(csvfile)
             for line in situation_data:
                 self.append_marketplace_situations(line)
+        self.update_timestamps()
 
         with open(buy_offer_path, 'r') as csvfile:
             buy_offer_data = csv.DictReader(csvfile)
@@ -157,13 +198,14 @@ class TrainingData():
             logging.warning('Could not download data from kafka: {}'.format(e))
             return
         if ms.status_code != 200 or bo.status_code != 200:
-            logging.warning("Kafka download failed")
+            logging.warning('Kafka download failed')
             return
 
-        situation_data = csv.DictReader(ms.text.split("\n"))
+        situation_data = csv.DictReader(ms.text.split('\n'))
         for line in situation_data:
             self.append_marketplace_situations(line)
-        buy_offer_data = csv.DictReader(bo.text.split("\n"))
+        self.update_timestamps()
+        buy_offer_data = csv.DictReader(bo.text.split('\n'))
         for line in buy_offer_data:
             self.append_sales(line)
 
@@ -203,7 +245,7 @@ def download_data_and_aggregate(merchant_token, merchant_id):
             data_url = kafka_api.request_csv_export_for_topic(topic)
             # TODO error handling for empty csvs
             resp = requests.get(data_url, timeout=2)
-            reader = csv.DictReader(resp.text.split("\n"))
+            reader = csv.DictReader(resp.text.split('\n'))
             csvs[topic] = [line for line in reader]
         except Exception as e:
             logging.warning('Could not download data for topic {} from kafka: {}'.format(topic, e))
@@ -289,7 +331,7 @@ def calculate_price_rank(price_list, own_price):
 
 
 def to_timestamp(timestamp):
-    return datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    return datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
 
 
 def calculate_min_price(offers):
