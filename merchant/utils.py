@@ -174,6 +174,12 @@ def extract_features_from_offer_snapshot(price, offers, merchant_id,
     return features
 
 
+def calculate_performance(sales_probabilities, sales, feature_count):
+    ll1, ll0 = calculate_aic(sales_probabilities, sales, feature_count)
+    calculate_mcfadden(ll1, ll0)
+    precision_recall(sales_probabilities, sales)
+
+
 def calculate_aic(sales_probabilities, sales, feature_count):
 
     # Für jede Situation:
@@ -182,7 +188,7 @@ def calculate_aic(sales_probabilities, sales, feature_count):
 
     ll = 0
 
-    # Nullmodell: Average sales probability based on actual sales
+    # Nullmodel: Average sales probability based on actual sales
     # Some stuff to read about it:
     # https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-what-are-pseudo-r-squareds/
     # http://www.karteikarte.com/card/2013125/null-modell
@@ -200,7 +206,7 @@ def calculate_aic(sales_probabilities, sales, feature_count):
     logging.info('Log likelihood is: {}'.format(ll))
     logging.info('AIC is: {}'.format(aic))
 
-    calculate_mcfadden(ll, ll0)
+    return ll, ll0
 
 
 def calculate_mcfadden(ll1, ll0):
@@ -208,3 +214,24 @@ def calculate_mcfadden(ll1, ll0):
     mcf = 1 - (math.log(ll1) / math.log(ll0))
     logging.debug('Hint: 0.2 < mcf < 0.4 is a good fit (higher is good)')
     logging.info('McFadden R squared is: {}'.format(mcf))
+
+
+def precision_recall(sales_probabilities, sales):
+    tp = 0
+    fp = 0
+    fn = 0
+
+    for i in range(len(sales)):
+        if sales_probabilities[i] > 0.5:
+            if sales[i] == 1:
+                tp += 1
+            else:
+                fp += 1
+        elif sales[i] == 0:
+            fn += 1
+
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+
+    logging.info('Precision is: {}'.format(precision))
+    logging.info('Recall is: {}'.format(recall))
