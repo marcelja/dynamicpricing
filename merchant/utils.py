@@ -78,10 +78,10 @@ class TrainingData():
                                                            timestamp))
                     features_vector.append(self.extract_features(offer_id,
                                                                  offer_list))
-        import pdb; pdb.set_trace()
         return sales_vector, features_vector
 
     def extract_features(self, offer_id, offer_list):
+        # [ [offer_id, price, quality] ]
         current_offer = [x for x in offer_list if offer_id == x[0]][0]
         other_offers = [x for x in offer_list if offer_id != x[0]]
         rank = 1
