@@ -51,8 +51,11 @@ class MLMerchant(SuperMerchant):
 
         td = TrainingData(merchant_token)
         td.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv')
+        td.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv')
         # td.store_as_json()
         td.print_info()
+
+        td.create_training_data('1')
         # td.append_by_kafka()
         # td.print_info()
         td.append_by_kafka('../data/marketSituation_kafka.csv', '../data/buyOffer_kafka.csv')

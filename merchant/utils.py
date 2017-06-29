@@ -38,9 +38,8 @@ class TrainingData():
     {
         product_id: {
             timestamp: {
-                offer_id: [ price, quality, ... ]
+                "sales_counter": 1 // 1 or higher
             }
-
         }
     } """
     def __init__(self, merchant_token, market_situations_json=None,
@@ -50,6 +49,16 @@ class TrainingData():
         self.merchant_token = merchant_token
 
     def create_training_data(self, product_id, interval_length=5):
+        import pdb; pdb.set_trace()
+        product = self.market_situations[product_id]
+
+        sales_vector = []
+        features_vector = []
+
+        c = 0
+
+        for timestamp, values in product.items():
+            pass
 
         return [], [[]]
 
@@ -63,10 +72,13 @@ class TrainingData():
                     counter_ms += len(offer.keys())
         timestamps_s = []
         counter_s = 0
+        counter_s_same_timestamp = 0
         for product in self.sales.values():
-            for timestamp, offer in product.items():
+            for timestamp, value in product.items():
                 bisect.insort(timestamps_s, timestamp)
-                counter_s += len(offer.keys())
+                counter_s += value["sales_counter"]
+                if value["sales_counter"]:
+                    counter_s_same_timestamp += 1
 
         print("\nTraining data: \n\tEntries market_situations: {} \
                \n\tEntries sales: {} \
@@ -76,10 +88,11 @@ class TrainingData():
                \n\tLast timestamp: {} \
                \n\nsales: \
                \n\tFirst timestamp: {} \
-               \n\tLast timestamp: {} \n\
+               \n\tLast timestamp: {} \
+               \n\tMultiple sale events at one timestamp: {} \n\
                ".format(counter_ms, counter_s, len(timestamps_ms),
                         timestamps_ms[0], timestamps_ms[-1], timestamps_s[0],
-                        timestamps_s[-1]))
+                        timestamps_s[-1], counter_s_same_timestamp))
 
     def store_as_json(self):
         data = {"market_situations": self.market_situations,
@@ -88,33 +101,26 @@ class TrainingData():
             json.dump(data, fp)
 
     def append_marketplace_situations(self, line):
-        """ Return 1 if offer already exists in self.market_situations. """
         dict_keys = [line["product_id"], line["timestamp"], line["merchant_id"]]
         ms = self.market_situations
         for dk in dict_keys:
             if dk not in ms:
                 ms[dk] = dict()
             ms = ms[dk]
-        if line["offer_id"] in ms:
-            return 1
-        else:
-            # TODO Add shipping_time, prime, etc.
+        if line["offer_id"] not in ms:
             ms[line["offer_id"]] = [line["price"], line["quality"]]
-            return 0
 
     def append_sales(self, line):
-        """ Return 1 if offer already exists in self.sales. """
         dict_keys = [line["product_id"], line["timestamp"]]
         s = self.sales
         for dk in dict_keys:
             if dk not in s:
                 s[dk] = dict()
             s = s[dk]
-        if line["offer_id"] in s:
-            return 1
+        if "sales_counter" in s:
+            s["sales_counter"] = s["sales_counter"] + 1
         else:
-            s[line["offer_id"]] = [line["price"], line["quality"]]
-            return 0
+            s["sales_counter"] = 1
 
     def append_by_csvs(self, market_situations_path, buy_offer_path):
         with open(market_situations_path, 'r') as csvfile:
