@@ -38,15 +38,16 @@ class TrainingData():
     {
         product_id: {
             timestamp: {
-                "sales_counter": 1 // 1 or higher
+                offer_id: 1 // 1 or higher
             }
         }
     } """
-    def __init__(self, merchant_token, market_situations_json=None,
-                 sales_json=None):
+    def __init__(self, merchant_token, merchant_id,
+                 market_situations_json=None, sales_json=None):
         self.market_situations = dict()
         self.sales = dict()
         self.merchant_token = merchant_token
+        self.merchant_id = merchant_id
 
     def create_training_data(self, product_id, interval_length=5):
         import pdb; pdb.set_trace()
@@ -74,11 +75,12 @@ class TrainingData():
         counter_s = 0
         counter_s_same_timestamp = 0
         for product in self.sales.values():
-            for timestamp, value in product.items():
+            for timestamp, offers in product.items():
                 bisect.insort(timestamps_s, timestamp)
-                counter_s += value["sales_counter"]
-                if value["sales_counter"]:
-                    counter_s_same_timestamp += 1
+                counter_s += len(offers.keys())
+                for o in offers.values():
+                    if o > 1:
+                        counter_s_same_timestamp += 1
 
         print("\nTraining data: \n\tEntries market_situations: {} \
                \n\tEntries sales: {} \
@@ -117,10 +119,10 @@ class TrainingData():
             if dk not in s:
                 s[dk] = dict()
             s = s[dk]
-        if "sales_counter" in s:
-            s["sales_counter"] = s["sales_counter"] + 1
+        if line["offer_id"] in s:
+            s[line["offer_id"]] = s[line["offer_id"]] + 1
         else:
-            s["sales_counter"] = 1
+            s[line["offer_id"]] = 1
 
     def append_by_csvs(self, market_situations_path, buy_offer_path):
         with open(market_situations_path, 'r') as csvfile:

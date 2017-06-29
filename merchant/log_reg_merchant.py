@@ -49,8 +49,7 @@ class MLMerchant(SuperMerchant):
     def __init__(self):
         super().__init__(merchant_token, settings)
 
-        td = TrainingData(merchant_token)
-        td.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv')
+        td = TrainingData(merchant_token, self.merchant_id)
         td.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv')
         # td.store_as_json()
         td.print_info()
