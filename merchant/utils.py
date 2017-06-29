@@ -1,18 +1,17 @@
 import sys
 import logging
-
-sys.path.append('./')
-sys.path.append('../')
-from merchant_sdk.api import KafkaApi, PricewarsRequester
 import os
 import base64
 import hashlib
-import sys
-import numpy as np
 import datetime
 import csv
 from collections import defaultdict
 import requests
+import math
+
+sys.path.append('./')
+sys.path.append('../')
+from merchant_sdk.api import KafkaApi, PricewarsRequester
 
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
@@ -54,6 +53,9 @@ def download_data_and_aggregate(merchant_token, merchant_id):
             data_url = kafka_api.request_csv_export_for_topic(topic)
             # TODO error handling for empty csvs
             resp = requests.get(data_url, timeout=2)
+            print("topic is" + topic)
+            resp.text
+            print('\n\n\n\n\n\n\n\n\n\n\n\n\n\n')
             reader = csv.DictReader(resp.text.split("\n"))
             csvs[topic] = [line for line in reader]
         except Exception as e:
@@ -155,6 +157,8 @@ def calculate_merchant_id_from_token(token):
 
 def extract_features_from_offer_snapshot(price, offers, merchant_id,
                                          product_id):
+    # TODO refactor!
+
     offers = [x for x in offers if product_id == x.product_id]
     features = [price]
     own_offer = [x for x in offers if x.merchant_id == merchant_id]
@@ -162,6 +166,72 @@ def extract_features_from_offer_snapshot(price, offers, merchant_id,
     price_list = [x.price for x in offers if x.merchant_id != merchant_id]
     features.append(calculate_price_rank(price_list, price))
     features.append(len(price_list))
+    # TODO remove the shit below, when fixed
+    if not price_list:
+        return features
     features.append(sum(price_list) / len(price_list))
     features.append(price - min(price_list))
     return features
+
+
+def calculate_performance(sales_probabilities, sales, feature_count):
+    ll1, ll0 = calculate_aic(sales_probabilities, sales, feature_count)
+    calculate_mcfadden(ll1, ll0)
+    precision_recall(sales_probabilities, sales)
+
+
+def calculate_aic(sales_probabilities, sales, feature_count):
+
+    # Für jede Situation:
+    # verkauft? * log(verkaufswahrsch.) + (1 - verkauft?) * (1 - log(1-verkaufswahrsch.))
+    # var LL  = sum{i in 1..B} ( y[i]*log(P[i]) + (1-y[i])*log(1-P[i]) );
+
+    ll = 0
+
+    # Nullmodel: Average sales probability based on actual sales
+    # Some stuff to read about it:
+    # https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-what-are-pseudo-r-squareds/
+    # http://www.karteikarte.com/card/2013125/null-modell
+
+    ll0 = 0.5
+
+    for i in range(len(sales)):
+        ll += sales[i] * math.log(sales_probabilities[i]) +\
+            (1 - sales[i]) * (math.log(1 - sales_probabilities[i]))
+        ll0 += sales[i]
+
+    ll0 = ll0 / len(sales)
+    aic = - 2 * ll + 2 * feature_count
+
+    logging.info('Log likelihood is: {}'.format(ll))
+    logging.info('AIC is: {}'.format(aic))
+
+    return ll, ll0
+
+
+def calculate_mcfadden(ll1, ll0):
+
+    mcf = 1 - (math.log(ll1) / math.log(ll0))
+    logging.debug('Hint: 0.2 < mcf < 0.4 is a good fit (higher is good)')
+    logging.info('McFadden R squared is: {}'.format(mcf))
+
+
+def precision_recall(sales_probabilities, sales):
+    tp = 0
+    fp = 0
+    fn = 0
+
+    for i in range(len(sales)):
+        if sales_probabilities[i] > 0.5:
+            if sales[i] == 1:
+                tp += 1
+            else:
+                fp += 1
+        elif sales[i] == 0:
+            fn += 1
+
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+
+    logging.info('Precision is: {}'.format(precision))
+    logging.info('Recall is: {}'.format(recall))

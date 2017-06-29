@@ -83,7 +83,7 @@ class MLMerchant(SuperMerchant):
         request_count = 0
 
         try:
-            offers = self.marketplace_api.get_offers(include_empty_offers=True)
+            offers = self.marketplace_api.get_offers(include_empty_offers=False)
         except Exception as e:
             logging.warning('Could not receive offers from marketplace: {}'.format(e))
             raise e
