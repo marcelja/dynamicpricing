@@ -59,7 +59,7 @@ class MLMerchant(SuperMerchant):
         model.fit(features_vector, sales_vector)
 
         probas = model.predict_proba(features_vector)
-        # calculate_performance([x[1] for x in probas], sales_vector, 1)
+        calculate_performance([x[1] for x in probas], sales_vector, 1)
 
         # td.append_by_kafka()
         # td.print_info()
@@ -218,11 +218,9 @@ class MLMerchant(SuperMerchant):
         # TODO include time and amount of sold items to featurelist
         logging.debug('Start training')
         model_products = dict()
-
         for product_id, vector_tuple in features.items():
             model = LogisticRegression()
             model.fit(vector_tuple[0], vector_tuple[1])
-
             model_products[product_id] = model
         logging.debug('Finished training')
         return model_products
@@ -233,7 +231,7 @@ if __name__ == "__main__":
     parser.add_argument('--port',
                         type=int,
                         default=5101,
-                        help='Port to bind flask App to, default is 5100')
+                        help='Port to bind flask App to, default is 5101')
     args = parser.parse_args()
     server = MerchantServer(MLMerchant())
     app = server.app

@@ -382,25 +382,27 @@ def calculate_aic(sales_probabilities, sales, feature_count):
     # https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-what-are-pseudo-r-squareds/
     # http://www.karteikarte.com/card/2013125/null-modell
 
-    ll0 = 0.5
+    ll0 = 0
+
+    average_sales = sum(sales) / len(sales)
 
     for i in range(len(sales)):
         ll += sales[i] * math.log(sales_probabilities[i]) +\
             (1 - sales[i]) * (math.log(1 - sales_probabilities[i]))
-        ll0 += sales[i]
+        ll0 += sales[i] * math.log(average_sales) +\
+            (1 - sales[i]) * (math.log(1 - average_sales))
 
-    ll0 = ll0 / len(sales)
     aic = - 2 * ll + 2 * feature_count
 
     logging.info('Log likelihood is: {}'.format(ll))
+    logging.info('LL0 is: {}'.format(ll0))
     logging.info('AIC is: {}'.format(aic))
 
     return ll, ll0
 
 
 def calculate_mcfadden(ll1, ll0):
-
-    mcf = 1 - (math.log(ll1) / math.log(ll0))
+    mcf = 1 - ll1 / ll0
     logging.debug('Hint: 0.2 < mcf < 0.4 is a good fit (higher is good)')
     logging.info('McFadden R squared is: {}'.format(mcf))
 
@@ -410,8 +412,10 @@ def precision_recall(sales_probabilities, sales):
     fp = 0
     fn = 0
 
+    av = sum(sales_probabilities) / len(sales_probabilities)
+
     for i in range(len(sales)):
-        if sales_probabilities[i] > 0.5:
+        if sales_probabilities[i] > av:
             if sales[i] == 1:
                 tp += 1
             else:
@@ -421,6 +425,6 @@ def precision_recall(sales_probabilities, sales):
 
     precision = tp / (tp + fp)
     recall = tp / (tp + fn)
-
+    logging.warning('######### Precision/Recall might be wrong #########')
     logging.info('Precision is: {}'.format(precision))
     logging.info('Recall is: {}'.format(recall))
