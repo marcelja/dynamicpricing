@@ -11,6 +11,7 @@ import logging
 import pandas as pd
 import numpy as np
 import random
+from multiprocessing import Process
 
 
 MODELS_FILE = 'log_reg_models.pkl'
@@ -58,9 +59,8 @@ class MLMerchant(SuperMerchant):
         model.fit(features_vector, sales_vector)
 
         probas = model.predict_proba(features_vector)
-        calculate_performance([x[1] for x in probas], sales_vector, 1)
-        
-        import pdb; pdb.set_trace()
+        # calculate_performance([x[1] for x in probas], sales_vector, 1)
+
         # td.append_by_kafka()
         # td.print_info()
         td.append_by_kafka('../data/marketSituation_kafka.csv', '../data/buyOffer_kafka.csv')
@@ -81,6 +81,11 @@ class MLMerchant(SuperMerchant):
         self.last_learning = datetime.datetime.now()
 
     def machine_learning(self):
+        p = Process(target=self.machine_learning_worker)
+        p.start()
+        p.join()
+
+    def machine_learning_worker(self):
         history = load_history()
         features_per_situation = download_data_and_aggregate(merchant_token, self.merchant_id)
         if features_per_situation:
