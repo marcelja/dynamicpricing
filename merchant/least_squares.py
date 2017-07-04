@@ -1,6 +1,10 @@
 import argparse
 import sys
+import threading
+import math
+import bisect
 
+from merchant.csv_reader import CSVReader
 from merchant.utils import download_data
 
 sys.path.append('./')
@@ -8,12 +12,8 @@ sys.path.append('../')
 from merchant.merchant_sdk import MerchantBaseLogic, MerchantServer
 from merchant.merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
 from merchant.merchant_sdk.models import Offer
-import numpy as np
-import math
-import csv
+
 from scipy.optimize import fmin
-from sklearn import linear_model
-from datetime import datetime
 
 '''
     Template for Ruby deployment to insert defined tokens
@@ -68,78 +68,54 @@ class LeastSquares(MerchantBaseLogic):
         self.marketplace_api = MarketplaceApi(host=self.settings['marketplace_url'])
         self.producer_api = ProducerApi(host=self.settings['producer_url'])
 
+        self.csv_reader = CSVReader()
+
         self.market_situation = []
         self.buy_offer = []
         self.market_situation_at_time = {}
         self.buy_offer_at_time = {}
-        self.highest_product_price = -1
-        self.lowest_product_price = -1
-        self.our_merchant_id = 0
+        self.csv_merchant_id = 0
         self.newest_bo_timestamp = None
         self.newest_ms_timestamp = None
 
         self.x_prices = {}
+        self.x_rank = {}
         self.read_csv_file()
-        self.init_training()
+
+        thread = threading.Thread(target=self.init_training, args=())
+        thread.start()
+        # self.init_training()
 
         '''
             Start Logic Loop
         '''
         self.run_logic_loop()
 
-    # TODO: reading csv and grouping by timestamp can be done in one step as well...
     def read_csv_file(self):
-        with open('../data/buyOffer.csv', 'rt') as csvfile:
-            reader = csv.reader(csvfile, delimiter=',')
-            for row in reader:
-                self.buy_offer.append(
-                    {'amount': row[0], 'consumer_id': row[1], 'left_in_stock': row[3], 'merchant_id': row[4], 'offer_id': row[5], 'price': row[6], 'product_id': row[7],
-                     'quality': row[8], 'timestamp': row[9]})
-                # BUY_OFFER.append(
-                #     {'amount': row[0], 'consumer_id': row[1], 'http_code': row[2], 'left_in_stock': row[3], 'merchant_id': row[4], 'offer_id': row[5], 'price': row[6], 'product_id': row[7],
-                #      'quality': row[8], 'timestamp': row[9], 'uid': row[10]})
-        with open('../data/marketSituation.csv', 'rt') as csvfile:
-            reader = csv.reader(csvfile, delimiter=',')
-            for row in reader:
-                self.market_situation.append(
-                    {'amount': row[0], 'merchant_id': row[1], 'offer_id': row[2], 'price': row[3], 'prime': row[4], 'product_id': row[5], 'quality': row[6], 'shipping_time_prime': row[7],
-                     'shipping_time_standard': row[8], 'timestamp': row[9], 'triggering_merchant_id': row[10]})
-                # MARKET_SITUATION.append(
-                #     {'amount': row[0], 'merchant_id': row[1], 'offer_id': row[2], 'price': row[3], 'prime': row[4], 'product_id': row[5], 'quality': row[6], 'shipping_time_prime': row[7],
-                #      'shipping_time_standard': row[8], 'timestamp': row[9], 'triggering_merchant_id': row[10], 'uid': row[11]})
-        self.our_merchant_id = self.buy_offer[0]['merchant_id']
-        self.group_data_by_timestamp()
-
-    def group_data_by_timestamp(self):
-        for ms_entry in self.market_situation:
-            timestamp = datetime.strptime(ms_entry['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ")
-            if self.newest_ms_timestamp is None or self.newest_ms_timestamp < timestamp:
-                self.newest_ms_timestamp = timestamp
-            if ms_entry['timestamp'] not in self.market_situation_at_time:
-                self.market_situation_at_time[ms_entry['timestamp']] = []
-            self.market_situation_at_time[ms_entry['timestamp']].append(ms_entry)
-            if float(ms_entry['price']) > self.highest_product_price:
-                self.highest_product_price = float(ms_entry['price'])
-        for bo_entry in self.buy_offer:
-            timestamp = datetime.strptime(bo_entry['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ")
-            if self.newest_bo_timestamp is None or self.newest_bo_timestamp < timestamp:
-                self.newest_bo_timestamp = timestamp
-            if bo_entry['timestamp'] not in self.buy_offer_at_time:
-                self.buy_offer_at_time[bo_entry['timestamp']] = []
-            self.buy_offer_at_time[bo_entry['timestamp']].append(bo_entry)
-            if self.lowest_product_price == -1 or float(ms_entry['price']) < self.lowest_product_price:
-                self.lowest_product_price = float(ms_entry['price'])
+        print("Read csv files...")
+        print("Read buyOffer.csv")
+        self.csv_reader.read_buy_offer()
+        print("Read marketSituation.csv")
+        self.csv_reader.read_market_situation()
+        self.buy_offer = self.csv_reader.buy_offer
+        self.market_situation = self.csv_reader.market_situation
+        self.market_situation_at_time = self.csv_reader.market_situation_at_time
+        self.buy_offer_at_time = self.csv_reader.buy_offer_at_time
+        self.csv_merchant_id = self.csv_reader.csv_merchant_id
+        print("Finished reading csv files!")
 
     def init_training(self):
+        print("Start initial training...")
         self.x_prices = {}
         for bo_entry in self.buy_offer:
-            self.update_training_data_from_buy_offer(self.convert_bo_to_sale(bo_entry))
-        self.update_training_data_from_market_situation(self.market_situation)
+            self.update_training_data_from_buy_offer(bo_entry)
+        self.update_training_data_from_market_situation(self.market_situation, self.market_situation_at_time)
+        print("Finished initial training!")
 
-    def f(self, x, product_id):
+    def f(self, x, x_values):
         result = 0
-        for sale in self.x_prices[product_id]:
-            result += math.pow((float(x[0]) - float(sale['price'])), 2)
+        for value in x_values:
+            result += math.pow((float(x[0]) - float(value)), 2)
         return result
 
     def update_api_endpoints(self):
@@ -180,7 +156,7 @@ class LeastSquares(MerchantBaseLogic):
         if self.state != 'running':
             return
         try:
-            print("Sold offer")
+            print("Sold offer: {}".format(offer))
             offers = self.marketplace_api.get_offers()
             self.buy_product_and_update_offer(offers)
         except Exception as e:
@@ -221,11 +197,17 @@ class LeastSquares(MerchantBaseLogic):
     def calculate_prices(self, marketplace_offers, purchase_price, product_id):
         if product_id in self.x_prices.keys():
             print("Calculate price on historic data...")
-            new_price = float(fmin(self.f, 0, (product_id,)))
+            new_price = float(fmin(self.f, 0, (self.x_prices[product_id],)))
+            new_rank = int(fmin(self.f, 0, (self.x_rank[product_id],)))
         else:
             print("Calculate price on purchase price...")
             new_price = purchase_price * 1.7
+            new_rank = 1
         print("New Price: {}".format(new_price))
+        print("New Rank: {}".format(new_rank))
+
+        rank = self.get_rank(new_price, product_id, marketplace_offers)
+        print("Real Rank: {}".format(rank))
 
         if new_price < (purchase_price * 1.3):
             new_price = purchase_price
@@ -233,6 +215,7 @@ class LeastSquares(MerchantBaseLogic):
         return new_price
 
     def add_new_product_to_offers(self, new_product, marketplace_offers):
+        print("Add new product to offers: {}".format(new_product))
         new_offer = Offer.from_product(new_product)
         new_offer.price = self.calculate_prices(marketplace_offers, new_product.price, new_product.product_id)
         new_offer.shipping_time = {
@@ -286,107 +269,110 @@ class LeastSquares(MerchantBaseLogic):
             return
         new_market_situation = downloaded_csvs['marketSituation'].to_records()
         new_buy_offer = downloaded_csvs['buyOffer'].to_records()
-        ms_to_append = self.convert_kafka_market_situation_to_internal_object(new_market_situation)
-        bo_to_append = self.convert_kafka_buy_offer_row_to_internal_object(new_buy_offer)
+        ms_to_append = self.csv_reader.read_kafka_market_situation(new_market_situation)
+        bo_to_append = self.csv_reader.read_kafka_buy_offer(new_buy_offer)
         self.update_ms_training_data(ms_to_append)
         self.update_bo_training_data(bo_to_append)
 
     def update_ms_training_data(self, downloaded_ms_data):
+        print("Process downloaded market situation from kafka...")
         timestamps_of_new_ms = []
         for ms in downloaded_ms_data:
-            if ms['timestamp'] not in timestamps_of_new_ms and ms['timestamp'] not in self.market_situation_at_time.keys():
-                timestamps_of_new_ms.append(ms['timestamp'])
+            if ms.timestamp_object not in timestamps_of_new_ms and ms.timestamp_object not in self.market_situation_at_time:
+                timestamps_of_new_ms.append(ms.timestamp_object)
                 self.market_situation.append(ms)
-                self.market_situation_at_time[ms['timestamp']] = []
-                self.market_situation_at_time[ms['timestamp']].append(ms)
+                self.market_situation_at_time[ms.timestamp_object] = []
+                self.market_situation_at_time[ms.timestamp_object].append(ms)
                 self.update_training_data_from_market_situation([ms])
-            elif ms['timestamp'] in timestamps_of_new_ms:
+            elif ms.timestamp_object in timestamps_of_new_ms:
                 self.market_situation.append(ms)
-                self.market_situation_at_time[ms['timestamp']].append(ms)
+                self.market_situation_at_time[ms.timestamp_object].append(ms)
                 self.update_training_data_from_market_situation([ms])
-        print("Finished updating MS training data")
+        print("Finished updating MS training data from kafka!")
 
     def update_bo_training_data(self, downloaded_bo_data):
+        print("Process downloaded buyOffer from kafka...")
         timestamps_of_new_bo = []
         for bo in downloaded_bo_data:
-            if bo['timestamp'] not in timestamps_of_new_bo and bo['timestamp'] not in self.buy_offer_at_time.keys():
+            if bo.timestamp_object not in timestamps_of_new_bo and bo.timestamp_object not in self.buy_offer_at_time:
                 timestamps_of_new_bo.append(bo['timestamp'])
                 self.buy_offer.append(bo)
-                self.buy_offer_at_time[bo['timestamp']] = []
-                self.buy_offer_at_time[bo['timestamp']].append(bo)
-                self.update_training_data_from_buy_offer(self.convert_bo_to_sale(bo))
-            elif bo['timestamp'] in timestamps_of_new_bo:
+                self.buy_offer_at_time[bo.timestamp_object] = []
+                self.buy_offer_at_time[bo.timestamp_object].append(bo)
+                self.update_training_data_from_buy_offer(bo)
+            elif bo.timestamp_object in timestamps_of_new_bo:
                 self.buy_offer.append(bo)
-                self.buy_offer_at_time[bo['timestamp']].append(bo)
-                self.update_training_data_from_buy_offer(self.convert_bo_to_sale(bo))
-        print("Finished updating BO training data")
+                self.buy_offer_at_time[bo.timestamp_object].append(bo)
+                self.update_training_data_from_buy_offer(bo)
+        print("Finished updating BO training data from kafka!")
 
     def update_training_data_from_buy_offer(self, bo):
-        if bo['product_id'] not in self.x_prices.keys():
-            self.x_prices[bo['product_id']] = []
-        self.x_prices[bo['product_id']].append(bo)
+        # print("Update training data from buyOffer...")
+        if bo.product_id not in self.x_prices:
+            self.x_prices[bo.product_id] = []
+        if bo.product_id not in self.x_rank:
+            self.x_rank[bo.product_id] = []
+        self.x_prices[bo.product_id].append(bo.price)
+        ms = self.get_market_situation_for_timestamp(bo.timestamp_object)
+        rank = self.get_rank(bo.price, bo.product_id, ms)
+        self.x_rank[bo.product_id].append(rank)
+        # print("Finished updating training data from buyBuffer!")
 
-    def convert_kafka_buy_offer_row_to_internal_object(self, new_buy_offer):
-        result = []
-        newest_timestamp = self.newest_bo_timestamp
-        for row in new_buy_offer:
-            if row[3] != 200:  # http code
-                continue
-            timestamp = datetime.strptime(row[10], "%Y-%m-%dT%H:%M:%S.%fZ")
-            if timestamp > self.newest_bo_timestamp:  # filter old entries
-                result.append(
-                    {'amount': row[1], 'consumer_id': row[2], 'left_in_stock': row[4], 'merchant_id': row[5], 'offer_id': row[6], 'price': row[7], 'product_id': row[8], 'quality': row[9],
-                     'timestamp': row[10]})
-                if timestamp > newest_timestamp:
-                    newest_timestamp = timestamp
-        self.newest_bo_timestamp = newest_timestamp
-        return result
-
-    def convert_kafka_market_situation_to_internal_object(self, new_market_situation):
-        result = []
-        newest_timestamp = self.newest_ms_timestamp
-        for row in new_market_situation:
-            timestamp = datetime.strptime(row[10], "%Y-%m-%dT%H:%M:%S.%fZ")
-            if timestamp > self.newest_ms_timestamp:  # filter old entries
-                result.append(
-                    {'amount': row[1], 'merchant_id': row[2], 'offer_id': row[3], 'price': row[4], 'prime': row[5], 'product_id': row[6], 'quality': row[7], 'shipping_time_prime': row[8],
-                     'shipping_time_standard': row[9], 'timestamp': row[10], 'triggering_merchant_id': row[11]})
-                if timestamp > newest_timestamp:
-                    newest_timestamp = timestamp
-        self.newest_ms_timestamp = newest_timestamp
-        return result
-
-    def update_training_data_from_market_situation(self, market_situation):
+    def update_training_data_from_market_situation(self, market_situation, market_situation_at_time=None):
         for ms in market_situation:
-            previous_ms = self.find_previous_ms(market_situation, ms['product_id'], ms['merchant_id'], ms['timestamp'])
+            previous_ms = self.find_previous_ms(market_situation, market_situation_at_time, ms.product_id, ms.merchant_id, ms.timestamp_object)
             if previous_ms is None and self.market_situation != market_situation:
-                previous_ms = self.find_previous_ms(self.market_situation, ms['product_id'], ms['merchant_id'], ms['timestamp'], 20)
+                previous_ms = self.find_previous_ms(self.market_situation, self.market_situation_at_time, ms.product_id, ms.merchant_id, ms.timestamp_object, 20)
             if previous_ms is None:
-                return
-            if int(previous_ms['amount']) > int(ms['amount']):
-                self.update_training_data_from_buy_offer(self.convert_ms_to_sale(previous_ms))
+                continue
 
-    def find_previous_ms(self, market_situation, product_id, merchant_id, timestamp, limit=-1):
-        previous_ms = []
-        converted_timestamp = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-        for i_ms, ms in reversed(list(enumerate(market_situation))):
-            if limit > -1 and i_ms < len(market_situation) - limit:
+            amount_sum = 0
+            for pms in previous_ms:
+                amount_sum += int(pms.amount)
+            if int(amount_sum) > int(ms.amount):
+                for pms in previous_ms:
+                    self.update_training_data_from_buy_offer(pms)
+
+    def find_previous_ms(self, market_situation, market_situation_at_time, product_id, merchant_id, timestamp, limit=-1):
+        # print("Looking for previous market situation...")
+        if market_situation_at_time is not None:
+            ms_key_list = list(market_situation_at_time.keys())
+            i = bisect.bisect_left(ms_key_list, timestamp) - 1
+            # print("result from bisect: {}".format(i))
+            if i != -1:
+                prev = self.get_entries_from_market_situation(market_situation_at_time[ms_key_list[i]], product_id, merchant_id)
+                # print("ts from bisect: {}".format(prev))
+                return prev
+            # else:
+            #     print("ts from bisect is None")
+        return None
+
+    def get_entries_from_market_situation(self, market_situations, product_id, merchant_id):
+        result = []
+        for ms in market_situations:
+            if ms.product_id == product_id and ms.merchant_id == merchant_id:
+                result.append(ms)
+        return result
+
+    def get_rank(self, new_price, product_id, marketplace_offers):
+        rank = 1
+        for offer in marketplace_offers:
+            if offer.product_id == product_id and offer.price < new_price:
+                rank += 1
+        return rank
+
+    def get_market_situation_for_timestamp(self, timestamp):
+        # print("Get market situation for timestamp...")
+        last_timestamp_before = None
+        last_timestamp_before_str = None
+        for ts in self.market_situation_at_time.keys():
+            if ts <= timestamp and (last_timestamp_before is None or last_timestamp_before < ts):
+                last_timestamp_before = ts
+                last_timestamp_before_str = ts
+            elif ts > timestamp:
                 break
-            if ms['product_id'] == product_id and ms['merchant_id'] == merchant_id and datetime.strptime(ms['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ") < converted_timestamp:
-                previous_ms.append(ms)
-        ms_max_timestamp = None
-        max_timestamp = None
-        for ms in previous_ms:
-            if ms_max_timestamp is None or max_timestamp < datetime.strptime(ms['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ"):
-                ms_max_timestamp = ms
-                max_timestamp = datetime.strptime(ms_max_timestamp['timestamp'], "%Y-%m-%dT%H:%M:%S.%fZ")
-        return ms_max_timestamp
-
-    def convert_ms_to_sale(self, ms):
-        return {'product_id': ms['product_id'], 'price': ms['price']}
-
-    def convert_bo_to_sale(self, bo):
-        return {'product_id': bo['product_id'], 'price': bo['price']}
+        # print("Found market situation for timestamp: {}".format(self.market_situation_at_time[last_timestamp_before_str]))
+        return self.market_situation_at_time[last_timestamp_before_str]
 
 
 merchant_logic = LeastSquares()
