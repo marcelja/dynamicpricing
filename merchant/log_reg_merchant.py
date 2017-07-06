@@ -1,10 +1,10 @@
-from merchant.SuperMerchant import SuperMerchant
+from SuperMerchant import SuperMerchant
 import os
-from merchant.merchant_sdk import MerchantBaseLogic, MerchantServer
-from merchant.merchant_sdk.models import Offer
+from merchant_sdk import MerchantBaseLogic, MerchantServer
+from merchant_sdk.models import Offer
 import argparse
 import pickle
-from merchant.utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot, TrainingData, calculate_performance
+from utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot, TrainingData, calculate_performance
 from sklearn.linear_model import LogisticRegression
 import datetime
 import logging
@@ -63,6 +63,7 @@ class MLMerchant(SuperMerchant):
         # import pdb; pdb.set_trace()
         # td.store_as_json()
         # td.print_info()
+        td.append_by_kafka()
 
         start = time.time()
         # td.append_by_csvs('../data/ms2.csv', '../data/bo2.csv')
