@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument('--port',
                         type=int,
                         default=5102,
-                        help='Port to bind flask App to, default is 5101')
+                        help='Port to bind flask App to, default is 5102')
     args = parser.parse_args()
     server = MerchantServer(RandomForestMerchant())
     app = server.app
