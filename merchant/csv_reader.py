@@ -18,7 +18,11 @@ class CSVReader:
     def read_buy_offer(self):
         with open('../data/buyOffer.csv', 'rt') as csvfile:
             reader = csv.reader(csvfile, delimiter=',')
+            skipped_header_row = False
             for row in reader:
+                if not skipped_header_row:
+                    skipped_header_row = True
+                    continue
                 new_buy_offer = BuyOffer(row)
                 self.check_and_set_merchant_id(new_buy_offer)
                 self.buy_offer.append(new_buy_offer)
@@ -27,7 +31,11 @@ class CSVReader:
     def read_market_situation(self):
         with open('../data/marketSituation.csv', 'rt') as csvfile:
             reader = csv.reader(csvfile, delimiter=',')
+            skipped_header_row = False
             for row in reader:
+                if not skipped_header_row:
+                    skipped_header_row = True
+                    continue
                 new_market_situation = MarketSituation(row)
                 self.market_situation.append(new_market_situation)
                 self.organize_market_situation_by_time(new_market_situation)
