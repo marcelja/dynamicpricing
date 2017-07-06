@@ -1,6 +1,6 @@
-from merchant_sdk import MerchantBaseLogic
-from merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
-from merchant_sdk.models import Offer
+from merchant.merchant_sdk import MerchantBaseLogic
+from merchant.merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
+from merchant.merchant_sdk.models import Offer
 
 
 class SuperMerchant(MerchantBaseLogic):

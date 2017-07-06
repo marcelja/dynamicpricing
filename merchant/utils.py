@@ -1,6 +1,8 @@
 import sys
 import logging
 
+import pandas as pd
+
 sys.path.append('./')
 sys.path.append('../')
 from merchant.merchant_sdk.api import KafkaApi, PricewarsRequester
@@ -229,13 +231,7 @@ def learn_from_csvs(token):
     merchant_id = sales[0]['merchant_id']
     return aggregate(market_situation, sales, merchant_id)
 
-
 def download_data_and_aggregate(merchant_token, merchant_id):
-    joined = aggregate(download_data(merchant_token), merchant_token)
-    return joined
-
-
-def download_data(merchant_token):
     # Dont know, if we need that URL at some point
     # 'http://vm-mpws2016hp1-05.eaalab.hpi.uni-potsdam.de:8001'
     PricewarsRequester.add_api_token(merchant_token)
@@ -255,12 +251,8 @@ def download_data(merchant_token):
             print('\n\n\n\n\n\n\n\n\n\n\n\n\n\n')
             reader = csv.DictReader(resp.text.split("\n"))
             csvs[topic] = [line for line in reader]
-        except pd.io.common.EmptyDataError as e:
-            logging.warning('Kafka returned an empty csv for topic {}'.format(topic))
-            return None
         except Exception as e:
             logging.warning('Could not download data for topic {} from kafka: {}'.format(topic, e))
-            return None
     logging.debug('Download finished')
     if csvs[topics[0]] and csvs[topics[1]]:
         # try:
@@ -271,6 +263,28 @@ def download_data(merchant_token):
         logging.info('Received empty csv files!')
         return None
 
+# TODO: adapt to new downloading process
+def download_data(merchant_token):
+    # Dont know, if we need that URL at some point
+    # 'http://vm-mpws2016hp1-05.eaalab.hpi.uni-potsdam.de:8001'
+    PricewarsRequester.add_api_token(merchant_token)
+    logging.debug('Downloading files from Kafka ...')
+    kafka_url = os.getenv('PRICEWARS_KAFKA_REVERSE_PROXY_URL', 'http://127.0.0.1:8001')
+    kafka_api = KafkaApi(host=kafka_url)
+    csvs = {'marketSituation': None, 'buyOffer': None}
+    for topic in ['marketSituation', 'buyOffer']:
+        try:
+            data_url = kafka_api.request_csv_export_for_topic(topic)
+            # TODO do we really need panda? Isnt the standard csv reader sufficient?
+            csvs[topic] = pd.read_csv(data_url)
+        except pd.io.common.EmptyDataError as e:
+            logging.warning('Kafka returned an empty csv for topic {}'.format(topic))
+            return None
+        except Exception as e:
+            logging.warning('Could not download data for topic {} from kafka: {}'.format(topic, e))
+            return None
+    logging.debug('Download finished')
+    return csvs
 
 def aggregate(market_situation, sales, merchant_id):
     vectors = dict()

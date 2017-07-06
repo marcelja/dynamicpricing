@@ -1,10 +1,10 @@
-from SuperMerchant import SuperMerchant
+from merchant.SuperMerchant import SuperMerchant
 import os
-from merchant_sdk import MerchantBaseLogic, MerchantServer
-from merchant_sdk.models import Offer
+from merchant.merchant_sdk import MerchantBaseLogic, MerchantServer
+from merchant.merchant_sdk.models import Offer
 import argparse
 import pickle
-from utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot, TrainingData, calculate_performance
+from merchant.utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot, TrainingData, calculate_performance
 from sklearn.linear_model import LogisticRegression
 import datetime
 import logging
@@ -34,7 +34,6 @@ settings = {
     'max_req_per_sec': 10.0,
     'learning_interval': 2.0,
 }
-
 
 def load_history():
     with open(MODELS_FILE, 'rb') as m:
@@ -209,7 +208,7 @@ class MLMerchant(SuperMerchant):
                         best_price = f[0]
                 print(best_price)
                 return best_price
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, AttributeError):
             # Fallback for new porduct
             print("RANDOMMMMMMMMM")
             return price * (np.random.exponential() + 0.99)
