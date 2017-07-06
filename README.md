@@ -1,1 +1,3 @@
 # dynamicpricing
+
+![Image](data.png)
