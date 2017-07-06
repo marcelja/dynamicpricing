@@ -31,7 +31,7 @@ class TrainingData():
     {
         product_id: {
             timestamp: {
-                "sales": [(timestamp, offer), (timestamp, offer), ...],
+                "sales": [(timestamp, offer_id), (timestamp, offer_id), ...],
                 merchant_id: {
                     offer_id: [ price, quality, ...]
                 }
@@ -43,7 +43,6 @@ class TrainingData():
     def __init__(self, merchant_token, merchant_id,
                  market_situations_json=None, sales_json=None):
         self.joined_data = dict()
-        self.sales = dict()
         self.merchant_token = merchant_token
         self.merchant_id = merchant_id
         self.merchant_id = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
@@ -67,17 +66,28 @@ class TrainingData():
         for timestamp, merchants in product.items():
             offer_list = []
             # [ [offer_id, price, quality] ]
-            for offers in merchants.values():
-                for offer_id, attributes in offers.items():
-                    offer_list.append([offer_id, attributes[0], attributes[1]])
+            for merchant_id, offers in merchants.items():
+                if merchant_id != 'sales':
+                    for offer_id, attributes in offers.items():
+                        offer_list.append([offer_id, attributes[0], attributes[1]])
 
             if self.merchant_id in merchants:
                 for offer_id in merchants[self.merchant_id].keys():
-                    sales_vector.append(self.extract_sales(product_id,
-                                                           offer_id,
-                                                           timestamp))
-                    features_vector.append(self.extract_features(offer_id,
-                                                                 offer_list))
+                    # sales_vector.append(self.extract_sales(product_id,
+                    #                                        offer_id,
+                    #                                        merchants.get('sales')))
+                    # features_vector.append(self.extract_features(offer_id,
+                    #                                              offer_list))
+                    amount_sales = self.extract_sales(product_id, offer_id,
+                                                      merchants.get('sales'))
+                    features = self.extract_features(offer_id, offer_list)
+                    if amount_sales == 0:
+                        sales_vector.append(0)
+                        features_vector.append(features)
+                    else:
+                        for i in range(amount_sales):
+                            sales_vector.append(1)
+                            features_vector.append(features)
         return sales_vector, features_vector
 
     def extract_features(self, offer_id, offer_list):
@@ -90,14 +100,10 @@ class TrainingData():
                 rank += 1
         return [rank]
 
-    def extract_sales(self, product_id, offer_id, timestamp):
-        if timestamp not in self.sales[product_id]:
+    def extract_sales(self, product_id, offer_id, sales):
+        if not sales:
             return 0
-        if offer_id not in self.sales[product_id][timestamp]:
-            return 0
-        if self.sales[product_id][timestamp][offer_id] > 0:
-            return 1
-        return 0
+        return [x[1] for x in sales].count(offer_id)
 
     def print_info(self):
         timestamps_ms = set()
@@ -144,7 +150,7 @@ class TrainingData():
         if len(self.timestamps) > 0 and line['timestamp'] <= self.timestamps[-1]:
             return
         dict_keys = [line['product_id'], line['timestamp'], line['merchant_id']]
-        ms = self.market_situations
+        ms = self.joined_data
         for dk in dict_keys:
             if dk not in ms:
                 ms[dk] = dict()
