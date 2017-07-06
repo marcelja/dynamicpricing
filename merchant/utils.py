@@ -27,7 +27,7 @@ INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
 
 class TrainingData():
     """
-    self.market_situations =
+    self.joined_data =
     {
         product_id: {
             timestamp: {
@@ -42,7 +42,7 @@ class TrainingData():
 
     def __init__(self, merchant_token, merchant_id,
                  market_situations_json=None, sales_json=None):
-        self.market_situations = dict()
+        self.joined_data = dict()
         self.sales = dict()
         self.merchant_token = merchant_token
         self.merchant_id = merchant_id
@@ -52,15 +52,15 @@ class TrainingData():
 
     def update_timestamps(self):
         timestamps = set()
-        for product in self.market_situations.values():
+        for product in self.joined_data.values():
             for timestamp in product.keys():
                 # TODO add at right position
                 timestamps.add(timestamp)
         self.timestamps = sorted(timestamps)
 
     def create_training_data(self, product_id, interval_length=5):
-        self.update_timestamps()
-        product = self.market_situations[product_id]
+        # self.update_timestamps()
+        product = self.joined_data[product_id]
         sales_vector = []
         features_vector = []
 
@@ -161,7 +161,7 @@ class TrainingData():
         timestamp = self.timestamps[index]
         self.last_sale_timestamp = line['timestamp']
 
-        interval = self.market_situations[line['product_id']][timestamp]
+        interval = self.joined_data[line['product_id']][timestamp]
         if 'sales' in interval:
             interval['sales'].append((line['timestamp'], line['offer_id']))
         else:
