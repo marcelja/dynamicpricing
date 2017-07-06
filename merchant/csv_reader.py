@@ -51,9 +51,9 @@ class CSVReader:
             if row[3] != 200:  # http code
                 continue
             timestamp = TimestampConverter.from_string(row[10])
-            if timestamp > self.newest_bo_timestamp:  # filter old entries
+            if self.newest_bo_timestamp is None or timestamp > self.newest_bo_timestamp:  # filter old entries
                 result.append(BuyOffer(None, row))
-                if timestamp > newest_timestamp:
+                if newest_timestamp is None or timestamp > newest_timestamp:
                     newest_timestamp = timestamp
         self.newest_bo_timestamp = newest_timestamp
         return result

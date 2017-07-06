@@ -1,8 +1,9 @@
 import argparse
+import bisect
+import copy
+import math
 import sys
 import threading
-import math
-import bisect
 
 from merchant.csv_reader import CSVReader
 from merchant.utils import download_data
@@ -49,6 +50,12 @@ class LeastSquares(MerchantBaseLogic):
         global settings
         self.settings = settings
 
+        # enable/disable describing variables
+        self.enable_price = True
+        self.enable_rank = False
+
+        # further settings
+        self.enable_predicting_sales_from_market_situation = False
         '''
             Information store
         '''
@@ -109,7 +116,8 @@ class LeastSquares(MerchantBaseLogic):
         self.x_prices = {}
         for bo_entry in self.buy_offer:
             self.update_training_data_from_buy_offer(bo_entry)
-        self.update_training_data_from_market_situation(self.market_situation, self.market_situation_at_time)
+        if self.enable_predicting_sales_from_market_situation:
+            self.update_training_data_from_market_situation(self.market_situation, self.market_situation_at_time)
         print("Finished initial training!")
 
     def f(self, x, x_values):
@@ -176,10 +184,14 @@ class LeastSquares(MerchantBaseLogic):
 
     def execute_logic(self):
         try:
+            print("Update training data")
             self.update_training_data()
+            print("get offers")
             offers = self.marketplace_api.get_offers()
+            print("set missing offers")
             missing_offers = self.settings["initialProducts"] - len(self.offers)
 
+            print("process products")
             for product in self.products.values():
                 if product.uid in self.offers:
                     offer = self.offers[product.uid]
@@ -192,25 +204,34 @@ class LeastSquares(MerchantBaseLogic):
                     print('ERROR: product uid is not in offers; skipping')
         except Exception as e:
             print('error on executing the logic:', e)
+
         return settings['maxReqPerSec'] / 10
 
     def calculate_prices(self, marketplace_offers, purchase_price, product_id):
         if product_id in self.x_prices.keys():
             print("Calculate price on historic data...")
-            new_price = float(fmin(self.f, 0, (self.x_prices[product_id],)))
-            new_rank = int(fmin(self.f, 0, (self.x_rank[product_id],)))
+            if self.enable_price:
+                new_price = float(fmin(self.f, 0, (self.x_prices[product_id],)))
+            if self.enable_rank:
+                new_rank = int(fmin(self.f, 0, (self.x_rank[product_id],)))
         else:
             print("Calculate price on purchase price...")
-            new_price = purchase_price * 1.7
-            new_rank = 1
-        print("New Price: {}".format(new_price))
-        print("New Rank: {}".format(new_rank))
+            if self.enable_price:
+                new_price = purchase_price * 1.7
+            if self.enable_rank:
+                new_rank = 1
 
-        rank = self.get_rank(new_price, product_id, marketplace_offers)
-        print("Real Rank: {}".format(rank))
+        if self.enable_price:
+            print("New Price: {}".format(new_price))
 
-        if new_price < (purchase_price * 1.3):
-            new_price = purchase_price
+        if self.enable_rank:
+            print("New Rank: {}".format(new_rank))
+            rank = self.get_rank(new_price, product_id, marketplace_offers)
+            print("Real Rank: {}".format(rank))
+
+        price_factor = 1.3
+        if new_price is None or new_price < (purchase_price * price_factor):
+            new_price = purchase_price * price_factor
 
         return new_price
 
@@ -283,11 +304,13 @@ class LeastSquares(MerchantBaseLogic):
                 self.market_situation.append(ms)
                 self.market_situation_at_time[ms.timestamp_object] = []
                 self.market_situation_at_time[ms.timestamp_object].append(ms)
-                self.update_training_data_from_market_situation([ms])
+                if self.enable_predicting_sales_from_market_situation:
+                    self.update_training_data_from_market_situation([ms])
             elif ms.timestamp_object in timestamps_of_new_ms:
                 self.market_situation.append(ms)
                 self.market_situation_at_time[ms.timestamp_object].append(ms)
-                self.update_training_data_from_market_situation([ms])
+                if self.enable_predicting_sales_from_market_situation:
+                    self.update_training_data_from_market_situation([ms])
         print("Finished updating MS training data from kafka!")
 
     def update_bo_training_data(self, downloaded_bo_data):
@@ -295,7 +318,7 @@ class LeastSquares(MerchantBaseLogic):
         timestamps_of_new_bo = []
         for bo in downloaded_bo_data:
             if bo.timestamp_object not in timestamps_of_new_bo and bo.timestamp_object not in self.buy_offer_at_time:
-                timestamps_of_new_bo.append(bo['timestamp'])
+                timestamps_of_new_bo.append(bo.timestamp_object)
                 self.buy_offer.append(bo)
                 self.buy_offer_at_time[bo.timestamp_object] = []
                 self.buy_offer_at_time[bo.timestamp_object].append(bo)
@@ -308,14 +331,19 @@ class LeastSquares(MerchantBaseLogic):
 
     def update_training_data_from_buy_offer(self, bo):
         # print("Update training data from buyOffer...")
-        if bo.product_id not in self.x_prices:
-            self.x_prices[bo.product_id] = []
-        if bo.product_id not in self.x_rank:
-            self.x_rank[bo.product_id] = []
-        self.x_prices[bo.product_id].append(bo.price)
-        ms = self.get_market_situation_for_timestamp(bo.timestamp_object)
-        rank = self.get_rank(bo.price, bo.product_id, ms)
-        self.x_rank[bo.product_id].append(rank)
+        # prices
+        if self.enable_price:
+            if bo.product_id not in self.x_prices:
+                self.x_prices[bo.product_id] = []
+
+        # rank
+        if self.enable_rank:
+            if bo.product_id not in self.x_rank:
+                self.x_rank[bo.product_id] = []
+            self.x_prices[bo.product_id].append(bo.price)
+            ms = self.get_market_situation_for_timestamp(bo.timestamp_object)
+            rank = self.get_rank(bo.price, bo.product_id, ms)
+            self.x_rank[bo.product_id].append(rank)
         # print("Finished updating training data from buyBuffer!")
 
     def update_training_data_from_market_situation(self, market_situation, market_situation_at_time=None):
@@ -362,17 +390,18 @@ class LeastSquares(MerchantBaseLogic):
         return rank
 
     def get_market_situation_for_timestamp(self, timestamp):
+        market_situation_at_time = copy.deepcopy(dict(self.market_situation_at_time))
         # print("Get market situation for timestamp...")
         last_timestamp_before = None
         last_timestamp_before_str = None
-        for ts in self.market_situation_at_time.keys():
+        for ts in market_situation_at_time.keys():
             if ts <= timestamp and (last_timestamp_before is None or last_timestamp_before < ts):
                 last_timestamp_before = ts
                 last_timestamp_before_str = ts
             elif ts > timestamp:
                 break
         # print("Found market situation for timestamp: {}".format(self.market_situation_at_time[last_timestamp_before_str]))
-        return self.market_situation_at_time[last_timestamp_before_str]
+        return market_situation_at_time[last_timestamp_before_str]
 
 
 merchant_logic = LeastSquares()
