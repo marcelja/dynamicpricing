@@ -12,6 +12,8 @@ import pandas as pd
 import numpy as np
 import random
 from multiprocessing import Process
+import pprint
+import time
 
 
 MODELS_FILE = 'log_reg_models.pkl'
@@ -51,9 +53,37 @@ class MLMerchant(SuperMerchant):
         super().__init__(merchant_token, settings)
 
         td = TrainingData(merchant_token, self.merchant_id)
+
+        start = time.time()
         td.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv')
+        # td.append_by_csvs('../data/ms1.csv', '../data/bo1.csv')
+        end = time.time()
+        print(end - start)
+        pp = pprint.PrettyPrinter(indent=4)
+        # pp.pprint(td.market_situations)
+        # import pdb; pdb.set_trace()
         # td.store_as_json()
-        td.print_info()
+        # td.print_info()
+
+        start = time.time()
+        # td.append_by_csvs('../data/ms2.csv', '../data/bo2.csv')
+        td.store_as_json()
+        # td.append_by_csvs('../data/ms1.csv', '../data/bo1.csv')
+        end = time.time()
+        print(end - start)
+
+
+        start = time.time()
+        with open('testtest.test', 'wb') as m:
+            pickle.dump(td, m)
+        end = time.time()
+        print(end - start)
+        # td.print_info()
+
+
+
+
+
         sales_vector, features_vector = td.create_training_data('1')
         model = LogisticRegression()
         model.fit(features_vector, sales_vector)

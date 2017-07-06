@@ -26,21 +26,15 @@ class TrainingData():
     {
         product_id: {
             timestamp: {
+                "sales": [(timestamp, offer), (timestamp, offer), ...],
                 merchant_id: {
                     offer_id: [ price, quality, ...]
                 }
             }
         }
     }
+    """
 
-    self.sales =
-    {
-        product_id: {
-            timestamp: {
-                offer_id: 1 // 1 or higher
-            }
-        }
-    } """
     def __init__(self, merchant_token, merchant_id,
                  market_situations_json=None, sales_json=None):
         self.market_situations = dict()
@@ -49,11 +43,13 @@ class TrainingData():
         self.merchant_id = merchant_id
         self.merchant_id = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
         self.timestamps = []
+        self.last_sale_timestamp = None
 
     def update_timestamps(self):
         timestamps = set()
         for product in self.market_situations.values():
             for timestamp in product.keys():
+                # TODO add at right position
                 timestamps.add(timestamp)
         self.timestamps = sorted(timestamps)
 
@@ -140,6 +136,8 @@ class TrainingData():
             json.dump(data, fp)
 
     def append_marketplace_situations(self, line):
+        if len(self.timestamps) > 0 and line['timestamp'] <= self.timestamps[-1]:
+            return
         dict_keys = [line['product_id'], line['timestamp'], line['merchant_id']]
         ms = self.market_situations
         for dk in dict_keys:
@@ -150,18 +148,19 @@ class TrainingData():
             ms[line['offer_id']] = [float(line['price']), line['quality']]
 
     def append_sales(self, line):
+        if self.last_sale_timestamp and line['timestamp'] <= self.last_sale_timestamp:
+            return
         index = bisect.bisect(self.timestamps, line['timestamp']) - 1
+        if index < 0:
+            return
         timestamp = self.timestamps[index]
-        dict_keys = [line['product_id'], timestamp]
-        s = self.sales
-        for dk in dict_keys:
-            if dk not in s:
-                s[dk] = dict()
-            s = s[dk]
-        if line['offer_id'] in s:
-            s[line['offer_id']] = s[line['offer_id']] + 1
+        self.last_sale_timestamp = line['timestamp']
+
+        interval = self.market_situations[line['product_id']][timestamp]
+        if 'sales' in interval:
+            interval['sales'].append((line['timestamp'], line['offer_id']))
         else:
-            s[line['offer_id']] = 1
+            interval['sales'] = [(line['timestamp'], line['offer_id'])]
 
     def append_by_csvs(self, market_situations_path, buy_offer_path):
         with open(market_situations_path, 'r') as csvfile:
@@ -169,7 +168,6 @@ class TrainingData():
             for line in situation_data:
                 self.append_marketplace_situations(line)
         self.update_timestamps()
-
         with open(buy_offer_path, 'r') as csvfile:
             buy_offer_data = csv.DictReader(csvfile)
             for line in buy_offer_data:
