@@ -1,11 +1,6 @@
 import sys
 import logging
-
 import pandas as pd
-
-sys.path.append('./')
-sys.path.append('../')
-from merchant.merchant_sdk.api import KafkaApi, PricewarsRequester
 import os
 import base64
 import hashlib
@@ -14,11 +9,14 @@ import csv
 from collections import defaultdict
 import requests
 import math
+import bisect
+import json
+import pickle
+
 
 sys.path.append('./')
 sys.path.append('../')
-import bisect
-import json
+from merchant.merchant_sdk.api import KafkaApi, PricewarsRequester
 
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
@@ -470,3 +468,13 @@ def extract_features(offer_id, offer_list):
         if oo[1] < current_offer[1]:
             rank += 1
     return [rank]
+
+
+def load_history(file):
+    with open(file, 'rb') as m:
+        return pickle.load(m)
+
+
+def save_training_data(data, file):
+    with open(file, 'wb') as m:
+        pickle.dump(data, m)
