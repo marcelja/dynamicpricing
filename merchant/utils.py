@@ -45,7 +45,6 @@ class TrainingData():
         self.joined_data = dict()
         self.merchant_token = merchant_token
         self.merchant_id = merchant_id
-        self.merchant_id = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
         self.timestamps = []
         self.last_sale_timestamp = None
 
@@ -88,7 +87,13 @@ class TrainingData():
                         for i in range(amount_sales):
                             sales_vector.append(1)
                             features_vector.append(features)
-        return sales_vector, features_vector
+        return (features_vector, sales_vector)
+
+    def convert_training_data(self):
+        converted = dict()
+        for product_id in self.joined_data.keys():
+            converted[product_id] = self.create_training_data(product_id)
+        return converted
 
     def extract_features(self, offer_id, offer_list):
         # [ [offer_id, price, quality] ]
@@ -146,10 +151,14 @@ class TrainingData():
         with open('training_data.json', 'w') as fp:
             json.dump(data, fp)
 
-    def append_marketplace_situations(self, line):
+    def append_marketplace_situations(self, line, csv_merchant_id=None):
+        merchant_id = line['merchant_id']
+        if csv_merchant_id == merchant_id:
+            merchant_id = self.merchant_id
+
         if len(self.timestamps) > 0 and line['timestamp'] <= self.timestamps[-1]:
             return
-        dict_keys = [line['product_id'], line['timestamp'], line['merchant_id']]
+        dict_keys = [line['product_id'], line['timestamp'], merchant_id]
         ms = self.joined_data
         for dk in dict_keys:
             if dk not in ms:
@@ -173,11 +182,11 @@ class TrainingData():
         else:
             interval['sales'] = [(line['timestamp'], line['offer_id'])]
 
-    def append_by_csvs(self, market_situations_path, buy_offer_path):
+    def append_by_csvs(self, market_situations_path, buy_offer_path, csv_merchant_id=None):
         with open(market_situations_path, 'r') as csvfile:
             situation_data = csv.DictReader(csvfile)
             for line in situation_data:
-                self.append_marketplace_situations(line)
+                self.append_marketplace_situations(line, csv_merchant_id)
         self.update_timestamps()
         with open(buy_offer_path, 'r') as csvfile:
             buy_offer_data = csv.DictReader(csvfile)

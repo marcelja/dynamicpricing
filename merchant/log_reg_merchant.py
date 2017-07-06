@@ -12,8 +12,6 @@ import pandas as pd
 import numpy as np
 import random
 from multiprocessing import Process
-import pprint
-import time
 
 
 MODELS_FILE = 'log_reg_models.pkl'
@@ -22,6 +20,7 @@ if os.getenv('API_TOKEN'):
     merchant_token = os.getenv('API_TOKEN')
 else:
     merchant_token = '0hjzYcmGQUKnCjtHKki3UN2BvMJouLBu2utbWgqwBBkNuefFOOJslK4hgOWbihWl'
+initial_merchant_id = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
 print(merchant_token)
 
 settings = {
@@ -42,61 +41,15 @@ def load_history():
         return pickle.load(m)
 
 
-def save_features(features_per_situation):
+def save_training_data(data):
     with open(MODELS_FILE, 'wb') as m:
-        pickle.dump(features_per_situation, m)
+        pickle.dump(data, m)
 
 
 class MLMerchant(SuperMerchant):
     def __init__(self):
         super().__init__(merchant_token, settings)
-
-        td = TrainingData(merchant_token, self.merchant_id)
-
-        start = time.time()
-        td.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv')
-        # td.append_by_csvs('../data/ms1.csv', '../data/bo1.csv')
-        end = time.time()
-        print(end - start)
-        pp = pprint.PrettyPrinter(indent=4)
-        # pp.pprint(td.market_situations)
-        # import pdb; pdb.set_trace()
-        # td.store_as_json()
-        # td.print_info()
-        td.append_by_kafka()
-
-        start = time.time()
-        # td.append_by_csvs('../data/ms2.csv', '../data/bo2.csv')
-        td.store_as_json()
-        # td.append_by_csvs('../data/ms1.csv', '../data/bo1.csv')
-        end = time.time()
-        print(end - start)
-
-
-        start = time.time()
-        with open('testtest.test', 'wb') as m:
-            pickle.dump(td, m)
-        end = time.time()
-        print(end - start)
-        # td.print_info()
-
-
-
-
-
-        sales_vector, features_vector = td.create_training_data('1')
-        model = LogisticRegression()
-        model.fit(features_vector, sales_vector)
-
-        probas = model.predict_proba(features_vector)
-        calculate_performance([x[1] for x in probas], sales_vector, 1)
-
-        # td.append_by_kafka()
-        # td.print_info()
-        td.append_by_kafka('../data/marketSituation_kafka.csv', '../data/buyOffer_kafka.csv')
-        td.print_info()
-
-        if os.path.isfile(MODELS_FILE):
+        if os.path.isfile(MODELS_FILE + 'asdf'):
             self.machine_learning()
             self.last_learning = datetime.datetime.now()
         else:
@@ -104,10 +57,16 @@ class MLMerchant(SuperMerchant):
         self.run_logic_loop()
 
     def initial_learning(self):
-        features_per_situation = learn_from_csvs(merchant_token)
-        save_features(features_per_situation)
-        self.product_models = self.train_model(features_per_situation)
-        # TODO kafka learning
+        self.training_data = TrainingData(self.merchant_token, self.merchant_id)
+        self.training_data.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv',
+                                          'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM=')
+        # self.training_data.append_by_csvs('../data/ms1.csv', '../data/bo1.csv',
+        #                                   'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM=')
+        # self.training_data.append_by_csvs('../data/ms2.csv', '../data/bo2.csv',
+        #                                   'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM=')
+
+        save_training_data(self.training_data)
+        self.product_models = self.train_model(self.training_data.convert_training_data())
         self.last_learning = datetime.datetime.now()
 
     def machine_learning(self):
