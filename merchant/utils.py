@@ -75,11 +75,11 @@ class TrainingData():
                     # sales_vector.append(self.extract_sales(product_id,
                     #                                        offer_id,
                     #                                        merchants.get('sales')))
-                    # features_vector.append(self.extract_features(offer_id,
+                    # features_vector.append(extract_features(offer_id,
                     #                                              offer_list))
                     amount_sales = self.extract_sales(product_id, offer_id,
                                                       merchants.get('sales'))
-                    features = self.extract_features(offer_id, offer_list)
+                    features = extract_features(offer_id, offer_list)
                     if amount_sales == 0:
                         sales_vector.append(0)
                         features_vector.append(features)
@@ -94,16 +94,6 @@ class TrainingData():
         for product_id in self.joined_data.keys():
             converted[product_id] = self.create_training_data(product_id)
         return converted
-
-    def extract_features(self, offer_id, offer_list):
-        # [ [offer_id, price, quality] ]
-        current_offer = [x for x in offer_list if offer_id == x[0]][0]
-        other_offers = [x for x in offer_list if offer_id != x[0]]
-        rank = 1
-        for oo in other_offers:
-            if oo[1] < current_offer[1]:
-                rank += 1
-        return [rank]
 
     def extract_sales(self, product_id, offer_id, sales):
         if not sales:
@@ -211,14 +201,16 @@ class TrainingData():
 
         try:
             ms, bo = self.download_kafka_files()
+
         except Exception as e:
             logging.warning('Could not download data from kafka: {}'.format(e))
             return
-        if ms.status_code != 200 or bo.status_code != 200:
+        if ms.status_code != 200 or bo.status_code != 200 or len(ms.text) < 10 or len(bo.text) < 10:
             logging.warning('Kafka download failed')
             return
 
         situation_data = csv.DictReader(ms.text.split('\n'))
+        import pdb;pdb.set_trace()
         for line in situation_data:
             self.append_marketplace_situations(line)
         self.update_timestamps()
@@ -467,3 +459,14 @@ def precision_recall(sales_probabilities, sales):
     logging.warning('######### Precision/Recall might be wrong #########')
     logging.info('Precision is: {}'.format(precision))
     logging.info('Recall is: {}'.format(recall))
+
+
+def extract_features(offer_id, offer_list):
+    # [ [offer_id, price, quality] ]
+    current_offer = [x for x in offer_list if offer_id == x[0]][0]
+    other_offers = [x for x in offer_list if offer_id != x[0]]
+    rank = 1
+    for oo in other_offers:
+        if oo[1] < current_offer[1]:
+            rank += 1
+    return [rank]

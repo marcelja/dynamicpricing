@@ -4,7 +4,7 @@ from merchant_sdk import MerchantBaseLogic, MerchantServer
 from merchant_sdk.models import Offer
 import argparse
 import pickle
-from utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot, TrainingData, calculate_performance
+from utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot, TrainingData, calculate_performance, extract_features
 from sklearn.linear_model import LogisticRegression
 import datetime
 import logging
@@ -49,7 +49,7 @@ def save_training_data(data):
 class MLMerchant(SuperMerchant):
     def __init__(self):
         super().__init__(merchant_token, settings)
-        if os.path.isfile(MODELS_FILE + 'asdf'):
+        if os.path.isfile(MODELS_FILE):
             self.machine_learning()
             self.last_learning = datetime.datetime.now()
         else:
@@ -70,21 +70,17 @@ class MLMerchant(SuperMerchant):
         self.last_learning = datetime.datetime.now()
 
     def machine_learning(self):
-        p = Process(target=self.machine_learning_worker)
-        p.start()
-        p.join()
+        self.machine_learning_worker()
+        # p = Process(target=self.machine_learning_worker)
+        # p.start()
+        # p.join()
 
     def machine_learning_worker(self):
-        history = load_history()
-        features_per_situation = download_data_and_aggregate(merchant_token, self.merchant_id)
-        if features_per_situation:
-            # TODO does that work ??
-            try:
-                history.update(features_per_situation)
-            except Exception:
-                print(features_per_situation)
-            save_features(features_per_situation)
-            self.product_models = self.train_model(features_per_situation)
+        self.training_data = load_history()
+        self.training_data.append_by_kafka()
+        save_training_data(self.training_data)
+        self.product_models = self.train_model(self.training_data.convert_training_data())
+        self.last_learning = datetime.datetime.now()
 
     def execute_logic(self):
         next_training_session = self.last_learning \
@@ -139,7 +135,7 @@ class MLMerchant(SuperMerchant):
                         self.marketplace_api.restock(offer.offer_id, amount=product.amount, signature=product.signature)
                     except Exception as e:
                         print('error on restocking an offer:', e)
-                    offer.price = self.calculate_optimal_price(product, product_prices_by_uid, current_offers=offers)
+                    offer.price = self.calculate_optimal_price(product, product_prices_by_uid, offer, current_offers=offers)
                     try:
                         self.marketplace_api.update_offer(offer)
                         request_count += 1
@@ -151,7 +147,7 @@ class MLMerchant(SuperMerchant):
                     offer.shipping_time['standard'] = self.settings['shipping']
                     offer.shipping_time['prime'] = self.settings['primeShipping']
                     offer.merchant_id = self.merchant_id
-                    offer.price = self.calculate_optimal_price(product, product_prices_by_uid, current_offers=offers+[offer])
+                    offer.price = self.calculate_optimal_price(product, product_prices_by_uid, offer, current_offers=offers+[offer])
                     try:
                         self.marketplace_api.add_offer(offer)
                     except Exception as e:
@@ -161,7 +157,7 @@ class MLMerchant(SuperMerchant):
 
         return max(1.0, request_count) / settings['max_req_per_sec']
 
-    def calculate_optimal_price(self, product, product_prices_by_uid, current_offers=None):
+    def calculate_optimal_price(self, product, product_prices_by_uid, offer, current_offers=None):
         """
         Computes a price for a product based on trained models or (exponential) random fallback
         :param product: product object that is to be priced
@@ -175,29 +171,59 @@ class MLMerchant(SuperMerchant):
             print("RAND \n\n\n\n\n")
             return (random.randint(price * 100, 10000) / 100)
         try:
-            model = self.product_models[str(product.product_id)]
+            model = self.product_models['1']
+            # model = self.product_models[str(product.product_id)]
+            offer_list = [[x.offer_id,
+                           x.price,
+                           x.quality] for x in current_offers]
 
-            offer_df = pd.DataFrame([o.to_dict() for o in current_offers])
-            offer_df = offer_df[offer_df['product_id'] == product.product_id]
-            own_offers_mask = offer_df['merchant_id'] == self.merchant_id
 
-            features = []
-            for potential_price in range(1, 100, 1):
+            # offer_df = offer_df[offer_df['product_id'] == product.product_id]
+            # own_offers_mask = offer_df['merchant_id'] == self.merchant_id
+
+            # features = []
+            lst = []
+            potential_prices = list(range(1, 100, 1))
+            for potential_price in potential_prices:
+
                 potential_price_candidate = potential_price / 10.0
-                potential_price = price + potential_price_candidate #product.price + potential_price_candidate
-                offer_df.loc[own_offers_mask, 'price'] = potential_price
-                features.append(extract_features_from_offer_snapshot(potential_price, current_offers, self.merchant_id,
-                                                                     product.product_id))
+                potential_price = price + potential_price_candidate
 
-                probas = model.predict_proba(features)[:, 1]
-                max_expected_profit = 0
-                for i, f in enumerate(features):
-                    expected_profit = probas[i] * (f[0] - price)
-                    if expected_profit > max_expected_profit:
-                        max_expected_profit = expected_profit
-                        best_price = f[0]
-                print(best_price)
-                return best_price
+                next(x for x in offer_list if x[0] == offer.offer_id)[1] = potential_price
+                prediction_data = extract_features(offer.offer_id, offer_list)
+                lst.append(prediction_data)
+
+            probas = model.predict_proba(lst)[:, 1]
+            # import pdb;pdb.set_trace()
+
+            expected_profits = []
+
+            for i, proba in enumerate(probas):
+                expected_profits.append(proba * (potential_prices[i] - price))
+            print(potential_prices[expected_profits.index(max(expected_profits))])
+            return potential_prices[expected_profits.index(max(expected_profits))]
+
+
+
+
+
+
+
+
+
+                # offer_df.loc[own_offers_mask, 'price'] = potential_price
+                # features.append(extract_features_from_offer_snapshot(potential_price, current_offers, self.merchant_id,
+                #                                                      product.product_id))
+
+                # probas = model.predict_proba(features)[:, 1]
+                # max_expected_profit = 0
+                # for i, f in enumerate(features):
+                #     expected_profit = probas[i] * (f[0] - price)
+                #     if expected_profit > max_expected_profit:
+                #         max_expected_profit = expected_profit
+                #         best_price = f[0]
+                # print(best_price)
+                # return best_price
         except (KeyError, ValueError, AttributeError):
             # Fallback for new porduct
             print("RANDOMMMMMMMMM")
@@ -219,7 +245,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PriceWars Merchant doing fancy ML')
     parser.add_argument('--port',
                         type=int,
-                        default=5101,
+                        default=5100,
                         help='Port to bind flask App to, default is 5101')
     args = parser.parse_args()
     server = MerchantServer(MLMerchant())
