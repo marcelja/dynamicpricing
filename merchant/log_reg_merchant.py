@@ -118,7 +118,7 @@ class MLMerchant(SuperMerchant):
 
         for own_offer in own_offers:
             if own_offer.amount > 0:
-                own_offer.price = self.calculate_optimal_price(own_offer, product_prices_by_uid, current_offers=offers)
+                own_offer.price = self.calculate_optimal_price(own_offer, product_prices_by_uid, own_offer, current_offers=offers)
                 try:
                     self.marketplace_api.update_offer(own_offer)
                     request_count += 1
@@ -165,65 +165,35 @@ class MLMerchant(SuperMerchant):
         :return:
         """
 
+        # TODO split this function into two or three
+
         price = product_prices_by_uid[product.uid]
 
         if random.uniform(0, 1) < 0.3:
             print("RAND \n\n\n\n\n")
             return (random.randint(price * 100, 10000) / 100)
         try:
+            # TODO Add actual product id
             model = self.product_models['1']
             # model = self.product_models[str(product.product_id)]
             offer_list = [[x.offer_id,
                            x.price,
                            x.quality] for x in current_offers]
-
-
-            # offer_df = offer_df[offer_df['product_id'] == product.product_id]
-            # own_offers_mask = offer_df['merchant_id'] == self.merchant_id
-
-            # features = []
             lst = []
             potential_prices = list(range(1, 100, 1))
             for potential_price in potential_prices:
-
                 potential_price_candidate = potential_price / 10.0
                 potential_price = price + potential_price_candidate
 
                 next(x for x in offer_list if x[0] == offer.offer_id)[1] = potential_price
                 prediction_data = extract_features(offer.offer_id, offer_list)
                 lst.append(prediction_data)
-
             probas = model.predict_proba(lst)[:, 1]
-            # import pdb;pdb.set_trace()
-
             expected_profits = []
-
             for i, proba in enumerate(probas):
                 expected_profits.append(proba * (potential_prices[i] - price))
             print(potential_prices[expected_profits.index(max(expected_profits))])
             return potential_prices[expected_profits.index(max(expected_profits))]
-
-
-
-
-
-
-
-
-
-                # offer_df.loc[own_offers_mask, 'price'] = potential_price
-                # features.append(extract_features_from_offer_snapshot(potential_price, current_offers, self.merchant_id,
-                #                                                      product.product_id))
-
-                # probas = model.predict_proba(features)[:, 1]
-                # max_expected_profit = 0
-                # for i, f in enumerate(features):
-                #     expected_profit = probas[i] * (f[0] - price)
-                #     if expected_profit > max_expected_profit:
-                #         max_expected_profit = expected_profit
-                #         best_price = f[0]
-                # print(best_price)
-                # return best_price
         except (KeyError, ValueError, AttributeError):
             # Fallback for new porduct
             print("RANDOMMMMMMMMM")
