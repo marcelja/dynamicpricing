@@ -166,6 +166,9 @@ class TrainingData():
         timestamp = self.timestamps[index]
         self.last_sale_timestamp = line['timestamp']
 
+        if timestamp not in self.joined_data[line['product_id']]:
+            self.joined_data[line['product_id']][timestamp] = dict()
+
         interval = self.joined_data[line['product_id']][timestamp]
         if 'sales' in interval:
             interval['sales'].append((line['timestamp'], line['offer_id']))
