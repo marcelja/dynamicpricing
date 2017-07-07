@@ -20,8 +20,6 @@ if os.getenv('API_TOKEN'):
     merchant_token = os.getenv('API_TOKEN')
 else:
     merchant_token = '0hjzYcmGQUKnCjtHKki3UN2BvMJouLBu2utbWgqwBBkNuefFOOJslK4hgOWbihWl'
-initial_merchant_id = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
-print(merchant_token)
 
 settings = {
     'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),

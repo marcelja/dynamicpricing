@@ -210,7 +210,6 @@ class TrainingData():
             return
 
         situation_data = csv.DictReader(ms.text.split('\n'))
-        import pdb;pdb.set_trace()
         for line in situation_data:
             self.append_marketplace_situations(line)
         self.update_timestamps()
