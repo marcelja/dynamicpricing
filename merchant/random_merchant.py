@@ -1,42 +1,24 @@
 import argparse
+import random
 import sys
-import os
+
+from SuperMerchant import SuperMerchant
+from merchant_sdk import MerchantServer
+from settings import Settings
 
 sys.path.append('./')
 sys.path.append('../')
-from merchant_sdk import MerchantBaseLogic, MerchantServer
-from merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
-from merchant_sdk.models import Offer
-from SuperMerchant import SuperMerchant
-import random
-
-# not sure, whether this token stuff brakes something
-
-if os.getenv('API_TOKEN'):
-    merchant_token = os.getenv('API_TOKEN')
-else:
-    merchant_token = '7xCvFloHDuwm9iHDVYpjjoVzlXue01I7yU3EGsVTnSGwAXAg6yQqnvpZTkEUlWbk'
-
-settings = {
-    'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),
-    'marketplace_url': MerchantBaseLogic.get_marketplace_url(),
-    'producer_url': MerchantBaseLogic.get_producer_url(),
-    'initialProducts': 5,
-    'shipping': 5,
-    'primeShipping': 1,
-    'maxReqPerSec': 40.0,
-    'underprice': 0.2
-}
 
 
 class RandomMerchant(SuperMerchant):
-
     def __init__(self):
-        super().__init__(merchant_token, settings)
+        settings = Settings(None, '7xCvFloHDuwm9iHDVYpjjoVzlXue01I7yU3EGsVTnSGwAXAg6yQqnvpZTkEUlWbk')
+        settings.shipping = 5
+        settings.max_req_per_sec = 40.0
+        super().__init__(settings)
         self.run_logic_loop()
 
-
-# This method might be moved to super, maybe
+    # This method might be moved to super, maybe
     def setup(self):
         try:
             marketplace_offers = self.marketplace_api.get_offers()
@@ -60,7 +42,7 @@ class RandomMerchant(SuperMerchant):
                     except Exception as e:
                         print('error on updating an offer:', e)
                 else:
-                    print ('ERROR: product uid is not in offers; skipping')
+                    print('ERROR: product uid is not in offers; skipping')
         except Exception as e:
             print('error on executing lloolloollthe logic:', e)
         return settings['maxReqPerSec'] / 10
@@ -69,6 +51,7 @@ class RandomMerchant(SuperMerchant):
         price = random.randint(purchase_price * 100, 10000) / 100
         print("price is: {}".format(price))
         return price
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PriceWars Merchant Being Random')

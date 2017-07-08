@@ -1,8 +1,8 @@
 import csv
 
-from merchant.buy_offer import BuyOffer
-from merchant.market_situation import MarketSituation
-from merchant.timestamp_converter import TimestampConverter
+from buy_offer import BuyOffer
+from market_situation import MarketSituation
+from timestamp_converter import TimestampConverter
 
 
 class CSVReader:

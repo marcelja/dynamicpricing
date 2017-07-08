@@ -5,16 +5,16 @@ import math
 import sys
 import threading
 
-from merchant.csv_reader_ls import CSVReader
-from merchant.utils import download_data
+from scipy.optimize import fmin
+
+from csv_reader_ls import CSVReader
+from merchant_sdk import MerchantBaseLogic, MerchantServer
+from merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
+from merchant_sdk.models import Offer
+from utils import download_data
 
 sys.path.append('./')
 sys.path.append('../')
-from merchant.merchant_sdk import MerchantBaseLogic, MerchantServer
-from merchant.merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
-from merchant.merchant_sdk.models import Offer
-
-from scipy.optimize import fmin
 
 '''
     Template for Ruby deployment to insert defined tokens

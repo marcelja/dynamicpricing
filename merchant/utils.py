@@ -11,7 +11,7 @@ from collections import defaultdict
 import pandas as pd
 import requests
 
-from merchant.merchant_sdk.api import KafkaApi, PricewarsRequester
+from merchant_sdk.api import KafkaApi, PricewarsRequester
 from timestamp_converter import TimestampConverter
 
 sys.path.append('./')

@@ -4,7 +4,7 @@ import json
 import logging
 
 from kafka_downloader import download_kafka_files
-from merchant.utils import extract_features
+from utils import extract_features
 
 
 class TrainingData:
