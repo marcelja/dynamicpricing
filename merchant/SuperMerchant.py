@@ -4,7 +4,7 @@ from merchant_sdk.models import Offer
 
 
 class SuperMerchant(MerchantBaseLogic):
-    def __init__(self, token, settings):
+    def __init__(self, settings):
         MerchantBaseLogic.__init__(self)
 
         self.settings = settings
@@ -23,14 +23,14 @@ class SuperMerchant(MerchantBaseLogic):
         '''
             Predefined API token
         '''
-        self.merchant_id = settings['merchant_id']
-        self.merchant_token = token
+        self.merchant_id = settings.merchant_id
+        self.merchant_token = settings.merchant_token
         '''
             Setup API
         '''
         PricewarsRequester.add_api_token(self.merchant_token)
-        self.marketplace_api = MarketplaceApi(host=self.settings['marketplace_url'])
-        self.producer_api = ProducerApi(host=self.settings['producer_url'])
+        self.marketplace_api = MarketplaceApi(host=self.settings.marketplace_url)
+        self.producer_api = ProducerApi(host=self.settings.producer_url)
 
     def update_api_endpoints(self):
         """
@@ -38,8 +38,8 @@ class SuperMerchant(MerchantBaseLogic):
         However, changing the endpoint (after simulation start) may lead to an inconsistent state
         :return: None
         """
-        self.marketplace_api.host = self.settings['marketplace_url']
-        self.producer_api.host = self.settings['producer_url']
+        self.marketplace_api.host = self.settings.marketplace_url
+        self.producer_api.host = self.settings.producer_url
 
     '''
         Implement Abstract methods / Interface
@@ -93,8 +93,8 @@ class SuperMerchant(MerchantBaseLogic):
         new_offer = Offer.from_product(new_product)
         new_offer.price = self.calculate_prices(marketplace_offers, new_product.uid, new_product.price, new_product.product_id)
         new_offer.shipping_time = {
-            'standard': self.settings['shipping'],
-            'prime': self.settings['primeShipping']
+            'standard': self.settings.shipping,
+            'prime': self.settings.primeShipping
         }
         new_offer.prime = True
         try:

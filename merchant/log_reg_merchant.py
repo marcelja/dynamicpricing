@@ -1,38 +1,22 @@
-from SuperMerchant import SuperMerchant
-import os
-from merchant_sdk import MerchantBaseLogic, MerchantServer
-from merchant_sdk.models import Offer
 import argparse
-import pickle
-from utils import download_data_and_aggregate, learn_from_csvs, extract_features_from_offer_snapshot, TrainingData, calculate_performance, extract_features
-from sklearn.linear_model import LogisticRegression
 import datetime
 import logging
-import pandas as pd
-import numpy as np
+import os
+import pickle
 import random
-from multiprocessing import Process
 
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+
+from SuperMerchant import SuperMerchant
+from merchant_sdk import MerchantServer
+from merchant_sdk.models import Offer
+from settings import Settings
+from training_data import TrainingData
+from utils import extract_features
 
 MODELS_FILE = 'log_reg_models.pkl'
 
-if os.getenv('API_TOKEN'):
-    merchant_token = os.getenv('API_TOKEN')
-else:
-    merchant_token = '0hjzYcmGQUKnCjtHKki3UN2BvMJouLBu2utbWgqwBBkNuefFOOJslK4hgOWbihWl'
-
-settings = {
-    'merchant_id': MerchantBaseLogic.calculate_id(merchant_token),
-    'marketplace_url': MerchantBaseLogic.get_marketplace_url(),
-    'producer_url': MerchantBaseLogic.get_producer_url(),
-    'kafka_reverse_proxy_url': MerchantBaseLogic.get_kafka_reverse_proxy_url(),
-    'debug': True,
-    'max_amount_of_offers': 10,
-    'shipping': 2,
-    'primeShipping': 1,
-    'max_req_per_sec': 10.0,
-    'learning_interval': 2.0,
-}
 
 def load_history():
     with open(MODELS_FILE, 'rb') as m:
@@ -46,12 +30,13 @@ def save_training_data(data):
 
 class MLMerchant(SuperMerchant):
     def __init__(self):
-        super().__init__(merchant_token, settings)
+        super().__init__(Settings())
         if os.path.isfile(MODELS_FILE):
             self.machine_learning()
             self.last_learning = datetime.datetime.now()
         else:
             self.initial_learning()
+
         self.run_logic_loop()
 
     def initial_learning(self):
@@ -82,7 +67,7 @@ class MLMerchant(SuperMerchant):
 
     def execute_logic(self):
         next_training_session = self.last_learning \
-            + datetime.timedelta(minutes=self.settings['learning_interval'])
+                                + datetime.timedelta(minutes=self.settings.learning_interval)
         if next_training_session <= datetime.datetime.now():
             self.last_learning = datetime.datetime.now()
             self.machine_learning()
@@ -97,7 +82,7 @@ class MLMerchant(SuperMerchant):
 
         own_offers = [offer for offer in offers if offer.merchant_id == self.merchant_id]
         own_offers_by_uid = {offer.uid: offer for offer in own_offers}
-        missing_offers = settings['max_amount_of_offers'] - sum(offer.amount for offer in own_offers)
+        missing_offers = self.settings.max_amount_of_offers - sum(offer.amount for offer in own_offers)
 
         new_products = []
         for _ in range(missing_offers):
@@ -142,10 +127,10 @@ class MLMerchant(SuperMerchant):
                 else:
                     offer = Offer.from_product(product)
                     offer.prime = True
-                    offer.shipping_time['standard'] = self.settings['shipping']
-                    offer.shipping_time['prime'] = self.settings['primeShipping']
+                    offer.shipping_time['standard'] = self.settings.shipping
+                    offer.shipping_time['prime'] = self.settings.primeShipping
                     offer.merchant_id = self.merchant_id
-                    offer.price = self.calculate_optimal_price(product, product_prices_by_uid, offer, current_offers=offers+[offer])
+                    offer.price = self.calculate_optimal_price(product, product_prices_by_uid, offer, current_offers=offers + [offer])
                     try:
                         self.marketplace_api.add_offer(offer)
                     except Exception as e:
@@ -153,7 +138,7 @@ class MLMerchant(SuperMerchant):
             except Exception as e:
                 print('could not handle product:', product, e)
 
-        return max(1.0, request_count) / settings['max_req_per_sec']
+        return max(1.0, request_count) / self.settings.max_req_per_sec
 
     def calculate_optimal_price(self, product, product_prices_by_uid, offer, current_offers=None):
         """
@@ -207,6 +192,7 @@ class MLMerchant(SuperMerchant):
             model_products[product_id] = model
         logging.debug('Finished training')
         return model_products
+
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)

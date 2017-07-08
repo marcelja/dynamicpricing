@@ -1,224 +1,23 @@
-import sys
+import base64
+import csv
+import hashlib
 import logging
+import math
+import os
+import sys
+from collections import defaultdict
 
 import pandas as pd
-
-sys.path.append('./')
-sys.path.append('../')
-from merchant.merchant_sdk.api import KafkaApi, PricewarsRequester
-import os
-import base64
-import hashlib
-import datetime
-import csv
-from collections import defaultdict
 import requests
-import math
+
+from merchant_sdk.api import KafkaApi, PricewarsRequester
+from timestamp_converter import TimestampConverter
 
 sys.path.append('./')
 sys.path.append('../')
-import bisect
-import json
-
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
 INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
-
-
-class TrainingData():
-    """
-    self.joined_data =
-    {
-        product_id: {
-            timestamp: {
-                "sales": [(timestamp, offer_id), (timestamp, offer_id), ...],
-                merchant_id: {
-                    offer_id: [ price, quality, ...]
-                }
-            }
-        }
-    }
-    """
-
-    def __init__(self, merchant_token, merchant_id,
-                 market_situations_json=None, sales_json=None):
-        self.joined_data = dict()
-        self.merchant_token = merchant_token
-        self.merchant_id = merchant_id
-        self.timestamps = []
-        self.last_sale_timestamp = None
-
-    def update_timestamps(self):
-        timestamps = set()
-        for product in self.joined_data.values():
-            for timestamp in product.keys():
-                # TODO add at right position
-                timestamps.add(timestamp)
-        self.timestamps = sorted(timestamps)
-
-    def create_training_data(self, product_id, interval_length=5):
-        # self.update_timestamps()
-        product = self.joined_data[product_id]
-        sales_vector = []
-        features_vector = []
-
-        for timestamp, merchants in product.items():
-            offer_list = []
-            # [ [offer_id, price, quality] ]
-            for merchant_id, offers in merchants.items():
-                if merchant_id != 'sales':
-                    for offer_id, attributes in offers.items():
-                        offer_list.append([offer_id, attributes[0], attributes[1]])
-
-            if self.merchant_id in merchants:
-                for offer_id in merchants[self.merchant_id].keys():
-                    # sales_vector.append(self.extract_sales(product_id,
-                    #                                        offer_id,
-                    #                                        merchants.get('sales')))
-                    # features_vector.append(extract_features(offer_id,
-                    #                                              offer_list))
-                    amount_sales = self.extract_sales(product_id, offer_id,
-                                                      merchants.get('sales'))
-                    features = extract_features(offer_id, offer_list)
-                    if amount_sales == 0:
-                        sales_vector.append(0)
-                        features_vector.append(features)
-                    else:
-                        for i in range(amount_sales):
-                            sales_vector.append(1)
-                            features_vector.append(features)
-        return (features_vector, sales_vector)
-
-    def convert_training_data(self):
-        converted = dict()
-        for product_id in self.joined_data.keys():
-            converted[product_id] = self.create_training_data(product_id)
-        return converted
-
-    def extract_sales(self, product_id, offer_id, sales):
-        if not sales:
-            return 0
-        return [x[1] for x in sales].count(offer_id)
-
-    def print_info(self):
-        timestamps_ms = set()
-        counter_ms = 0
-        for product in self.market_situations.values():
-            for timestamp, merchant in product.items():
-                timestamps_ms.add(timestamp)
-                for offer in merchant.values():
-                    counter_ms += len(offer.keys())
-        timestamps_s = set()
-        counter_s = 0
-        counter_s_same_timestamp = 0
-        for product in self.sales.values():
-            for timestamp, offers in product.items():
-                timestamps_s.add(timestamp)
-                counter_s += len(offers.keys())
-                for o in offers.values():
-                    if o > 1:
-                        counter_s_same_timestamp += 1
-        timestamps_ms = sorted(timestamps_ms)
-        timestamps_s = sorted(timestamps_s)
-
-        print('\nTraining data: \n\tEntries market_situations: {} \
-               \n\tEntries sales: {} \
-               \n\nmarket_situations: \
-               \n\tDistinct timestamps: {} \
-               \n\tFirst timestamp: {} \
-               \n\tLast timestamp: {} \
-               \n\nsales: \
-               \n\tFirst timestamp: {} \
-               \n\tLast timestamp: {} \
-               \n\tMultiple sale events in one interval: {} \n\
-               '.format(counter_ms, counter_s, len(timestamps_ms),
-                        timestamps_ms[0], timestamps_ms[-1], timestamps_s[0],
-                        timestamps_s[-1], counter_s_same_timestamp))
-
-    def store_as_json(self):
-        data = {'market_situations': self.market_situations,
-                'sales': self.sales}
-        with open('training_data.json', 'w') as fp:
-            json.dump(data, fp)
-
-    def append_marketplace_situations(self, line, csv_merchant_id=None):
-        merchant_id = line['merchant_id']
-        if csv_merchant_id == merchant_id:
-            merchant_id = self.merchant_id
-
-        if len(self.timestamps) > 0 and line['timestamp'] <= self.timestamps[-1]:
-            return
-        dict_keys = [line['product_id'], line['timestamp'], merchant_id]
-        ms = self.joined_data
-        for dk in dict_keys:
-            if dk not in ms:
-                ms[dk] = dict()
-            ms = ms[dk]
-        if line['offer_id'] not in ms:
-            ms[line['offer_id']] = [float(line['price']), line['quality']]
-
-    def append_sales(self, line):
-        if self.last_sale_timestamp and line['timestamp'] <= self.last_sale_timestamp:
-            return
-        index = bisect.bisect(self.timestamps, line['timestamp']) - 1
-        if index < 0:
-            return
-        timestamp = self.timestamps[index]
-        self.last_sale_timestamp = line['timestamp']
-
-        if timestamp not in self.joined_data[line['product_id']]:
-            self.joined_data[line['product_id']][timestamp] = dict()
-
-        interval = self.joined_data[line['product_id']][timestamp]
-        if 'sales' in interval:
-            interval['sales'].append((line['timestamp'], line['offer_id']))
-        else:
-            interval['sales'] = [(line['timestamp'], line['offer_id'])]
-
-    def append_by_csvs(self, market_situations_path, buy_offer_path, csv_merchant_id=None):
-        with open(market_situations_path, 'r') as csvfile:
-            situation_data = csv.DictReader(csvfile)
-            for line in situation_data:
-                self.append_marketplace_situations(line, csv_merchant_id)
-        self.update_timestamps()
-        with open(buy_offer_path, 'r') as csvfile:
-            buy_offer_data = csv.DictReader(csvfile)
-            for line in buy_offer_data:
-                self.append_sales(line)
-
-    def download_kafka_files(self):
-        logging.debug('Downloading files from Kafka ...')
-        PricewarsRequester.add_api_token(self.merchant_token)
-        kafka_url = os.getenv('PRICEWARS_KAFKA_REVERSE_PROXY_URL', 'http://127.0.0.1:8001')
-        kafka_api = KafkaApi(host=kafka_url)
-        data_url_ms = kafka_api.request_csv_export_for_topic('marketSituation')
-        data_url_bo = kafka_api.request_csv_export_for_topic('buyOffer')
-        return requests.get(data_url_ms, timeout=2), requests.get(data_url_bo, timeout=2)
-
-    def append_by_kafka(self, market_situations_path=None, buy_offer_path=None):
-        ########## use kafka example files
-        if market_situations_path and buy_offer_path:
-            self.append_by_csvs(market_situations_path, buy_offer_path)
-            return
-        #############
-
-        try:
-            ms, bo = self.download_kafka_files()
-
-        except Exception as e:
-            logging.warning('Could not download data from kafka: {}'.format(e))
-            return
-        if ms.status_code != 200 or bo.status_code != 200 or len(ms.text) < 10 or len(bo.text) < 10:
-            logging.warning('Kafka download failed')
-            return
-
-        situation_data = csv.DictReader(ms.text.split('\n'))
-        for line in situation_data:
-            self.append_marketplace_situations(line)
-        self.update_timestamps()
-        buy_offer_data = csv.DictReader(bo.text.split('\n'))
-        for line in buy_offer_data:
-            self.append_sales(line)
 
 
 def learn_from_csvs(token):
@@ -237,6 +36,7 @@ def learn_from_csvs(token):
     logging.debug('Finished reading of csv files')
     merchant_id = sales[0]['merchant_id']
     return aggregate(market_situation, sales, merchant_id)
+
 
 def download_data_and_aggregate(merchant_token, merchant_id):
     # Dont know, if we need that URL at some point
@@ -270,6 +70,7 @@ def download_data_and_aggregate(merchant_token, merchant_id):
         logging.info('Received empty csv files!')
         return None
 
+
 # TODO: adapt to new downloading process
 def download_data(merchant_token):
     # Dont know, if we need that URL at some point
@@ -293,6 +94,7 @@ def download_data(merchant_token):
     logging.debug('Download finished')
     return csvs
 
+
 def aggregate(market_situation, sales, merchant_id):
     vectors = dict()
     logging.debug('Starting data aggregation')
@@ -307,7 +109,7 @@ def aggregate(market_situation, sales, merchant_id):
             own_sales = []
             # import pdb; pdb.set_trace()
 
-            while sales_counter < len(sales) and to_timestamp(sales[sales_counter]['timestamp']) < to_timestamp(situation['timestamp']):
+            while sales_counter < len(sales) and TimestampConverter.from_string(sales[sales_counter]['timestamp']) < TimestampConverter.from_string(situation['timestamp']):
                 if sales[sales_counter]['http_code'][0] == '2':
                     own_sales.append(sales[sales_counter])
                 sales_counter += 1
@@ -363,10 +165,6 @@ def calculate_price_rank(price_list, own_price):
     return price_rank
 
 
-def to_timestamp(timestamp):
-    return datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
-
-
 def calculate_min_price(offers):
     price, quality = zip(*list(offers.values()))
     return min(list(price))
@@ -403,7 +201,6 @@ def calculate_performance(sales_probabilities, sales, feature_count):
 
 
 def calculate_aic(sales_probabilities, sales, feature_count):
-
     # Für jede Situation:
     # verkauft? * log(verkaufswahrsch.) + (1 - verkauft?) * (1 - log(1-verkaufswahrsch.))
     # var LL  = sum{i in 1..B} ( y[i]*log(P[i]) + (1-y[i])*log(1-P[i]) );
@@ -420,10 +217,10 @@ def calculate_aic(sales_probabilities, sales, feature_count):
     average_sales = sum(sales) / len(sales)
 
     for i in range(len(sales)):
-        ll += sales[i] * math.log(sales_probabilities[i]) +\
-            (1 - sales[i]) * (math.log(1 - sales_probabilities[i]))
-        ll0 += sales[i] * math.log(average_sales) +\
-            (1 - sales[i]) * (math.log(1 - average_sales))
+        ll += sales[i] * math.log(sales_probabilities[i]) + \
+              (1 - sales[i]) * (math.log(1 - sales_probabilities[i]))
+        ll0 += sales[i] * math.log(average_sales) + \
+               (1 - sales[i]) * (math.log(1 - average_sales))
 
     aic = - 2 * ll + 2 * feature_count
 

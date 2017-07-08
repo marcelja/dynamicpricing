@@ -5,7 +5,7 @@ import math
 import sys
 import threading
 
-from merchant.csv_reader import CSVReader
+from merchant.csv_reader_ls import CSVReader
 from merchant.utils import download_data
 
 sys.path.append('./')
