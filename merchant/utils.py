@@ -4,13 +4,14 @@ import hashlib
 import logging
 import math
 import os
+import pickle
 import sys
 from collections import defaultdict
 
 import pandas as pd
 import requests
 
-from merchant_sdk.api import KafkaApi, PricewarsRequester
+from merchant.merchant_sdk.api import KafkaApi, PricewarsRequester
 from timestamp_converter import TimestampConverter
 
 sys.path.append('./')
@@ -269,3 +270,13 @@ def extract_features(offer_id, offer_list):
         if oo[1] < current_offer[1]:
             rank += 1
     return [rank]
+
+
+def load_history(file):
+    with open(file, 'rb') as m:
+        return pickle.load(m)
+
+
+def save_training_data(data, file):
+    with open(file, 'wb') as m:
+        pickle.dump(data, m)
