@@ -173,7 +173,6 @@ class MLMerchant(ABC, SuperMerchant):
     def train_model(self, features):
         pass
 
-
-@abstractmethod
-def predict(self, product_id, situations):
-    pass
+    @abstractmethod
+    def predict(self, product_id, situations):
+        pass
