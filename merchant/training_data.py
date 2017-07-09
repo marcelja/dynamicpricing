@@ -2,8 +2,10 @@ import bisect
 import csv
 import json
 import logging
+from typing import List
 
 from kafka_downloader import download_kafka_files
+from models.joined_market_situation import JoinedMarketSituation
 from models.offer import Offer
 from utils import extract_features
 
@@ -13,10 +15,12 @@ class TrainingData:
     self.joined_data =
     {
         product_id: {
-            timestamp: {
-                "sales": [(timestamp, offer_id), (timestamp, offer_id), ...],
-                merchant_id: {
-                    offer_id: [ price, quality, ...]
+            timestamp: JoinedMarketSituation {
+                sales: [(timestamp, offer_id), (timestamp, offer_id), ...],
+                merchants: {
+                    merchant_id: {
+                        offer_id: [ price, quality, ...]
+                    }
                 }
             }
         }
@@ -45,33 +49,31 @@ class TrainingData:
         sales_vector = []
         features_vector = []
 
-        for timestamp, merchants in product.items():
-            offer_list = []
-            # [ [offer_id, price, quality] ]
-            for merchant_id, offers in merchants.items():
-                if merchant_id != 'sales':
-                    for offer_id, attributes in offers.items():
-                        # offer_list.append([offer_id, attributes[0], attributes[1]])
-                        offer_list.append(Offer(offer_id, attributes[0], attributes[1]))
+        for timestamp, joined_market_situation in product.items():
+            offer_list = self.create_offer_list(joined_market_situation)
+            self.append_to_vectors_from_features(features_vector, sales_vector, joined_market_situation, offer_list, product_id)
 
-            if self.merchant_id in merchants:
-                for offer_id in merchants[self.merchant_id].keys():
-                    # sales_vector.append(self.extract_sales(product_id,
-                    #                                        offer_id,
-                    #                                        merchants.get('sales')))
-                    # features_vector.append(extract_features(offer_id,
-                    #                                              offer_list))
-                    amount_sales = self.extract_sales(product_id, offer_id,
-                                                      merchants.get('sales'))
-                    features = extract_features(offer_id, offer_list)
-                    if amount_sales == 0:
-                        sales_vector.append(0)
-                        features_vector.append(features)
-                    else:
-                        for i in range(amount_sales):
-                            sales_vector.append(1)
-                            features_vector.append(features)
         return (features_vector, sales_vector)
+
+    def append_to_vectors_from_features(self, features_vector, sales_vector, joined_market_situation: JoinedMarketSituation, offer_list, product_id):
+        if self.merchant_id in joined_market_situation.merchants:
+            for offer_id in joined_market_situation.merchants[self.merchant_id].keys():
+                amount_sales = self.extract_sales(product_id, offer_id, joined_market_situation.sales)
+                features = extract_features(offer_id, offer_list)
+                if amount_sales == 0:
+                    sales_vector.append(0)
+                    features_vector.append(features)
+                else:
+                    for i in range(amount_sales):
+                        sales_vector.append(1)
+                        features_vector.append(features)
+
+    def create_offer_list(self, joined_market_situation: JoinedMarketSituation):
+        offer_list = []
+        for merchant_id, offers in joined_market_situation.merchants.items():
+            for offer_id, attributes in offers.items():
+                offer_list.append(Offer(offer_id, attributes[0], attributes[1]))
+        return offer_list
 
     def convert_training_data(self):
         converted = dict()
@@ -79,7 +81,7 @@ class TrainingData:
             converted[product_id] = self.create_training_data(product_id)
         return converted
 
-    def extract_sales(self, product_id, offer_id, sales):
+    def extract_sales(self, product_id, offer_id, sales: List):
         if not sales:
             return 0
         return [x[1] for x in sales].count(offer_id)
@@ -132,14 +134,18 @@ class TrainingData:
 
         if len(self.timestamps) > 0 and line['timestamp'] <= self.timestamps[-1]:
             return
-        dict_keys = [line['product_id'], line['timestamp'], merchant_id]
-        ms = self.joined_data
-        for dk in dict_keys:
-            if dk not in ms:
-                ms[dk] = dict()
-            ms = ms[dk]
-        if line['offer_id'] not in ms:
-            ms[line['offer_id']] = [float(line['price']), line['quality']]
+        self.prepare_joined_data(line['product_id'], line['timestamp'], merchant_id)
+        merchant = self.joined_data[line['product_id']][line['timestamp']].merchants[merchant_id]
+        if line['offer_id'] not in merchant:
+            merchant[line['offer_id']] = [float(line['price']), line['quality']]
+
+    def prepare_joined_data(self, product_id, timestamp, merchant_id=None):
+        if product_id not in self.joined_data:
+            self.joined_data[product_id] = dict()
+        if timestamp not in self.joined_data[product_id]:
+            self.joined_data[product_id][timestamp] = JoinedMarketSituation()
+        if merchant_id is not None and merchant_id not in self.joined_data[product_id][timestamp].merchants:
+            self.joined_data[product_id][timestamp].merchants[merchant_id] = dict()
 
     def append_sales(self, line):
         if self.last_sale_timestamp and line['timestamp'] <= self.last_sale_timestamp:
@@ -150,14 +156,10 @@ class TrainingData:
         timestamp = self.timestamps[index]
         self.last_sale_timestamp = line['timestamp']
 
-        if timestamp not in self.joined_data[line['product_id']]:
-            self.joined_data[line['product_id']][timestamp] = dict()
+        self.prepare_joined_data(line['product_id'], timestamp)
 
         interval = self.joined_data[line['product_id']][timestamp]
-        if 'sales' in interval:
-            interval['sales'].append((line['timestamp'], line['offer_id']))
-        else:
-            interval['sales'] = [(line['timestamp'], line['offer_id'])]
+        interval.sales.append((line['timestamp'], line['offer_id']))
 
     def append_by_csvs(self, market_situations_path, buy_offer_path, csv_merchant_id=None):
         with open(market_situations_path, 'r') as csvfile:
