@@ -1,73 +1,15 @@
 import base64
-import csv
 import hashlib
 import logging
 import math
 import os
 import pickle
-from collections import defaultdict
 from typing import List
 
 import pandas as pd
-import requests
 
 from merchant_sdk.api import KafkaApi, PricewarsRequester
-from models.offer import Offer
-from timestamp_converter import TimestampConverter
-
-INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
-INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
-
-
-def learn_from_csvs(token):
-    logging.debug('Reading csv files')
-    market_situation = []
-    sales = []
-    with open(INITIAL_MARKETSITUATION_CSV_PATH, 'r') as csvfile:
-        situation_reader = csv.DictReader(csvfile)
-        for situation in situation_reader:
-            market_situation.append(situation)
-
-    with open(INITIAL_BUYOFFER_CSV_PATH, 'r') as csvfile:
-        sales_reader = csv.DictReader(csvfile)
-        for sale in sales_reader:
-            sales.append(sale)
-    logging.debug('Finished reading of csv files')
-    merchant_id = sales[0]['merchant_id']
-    return aggregate(market_situation, sales, merchant_id)
-
-
-def download_data_and_aggregate(merchant_token, merchant_id):
-    # Dont know, if we need that URL at some point
-    # 'http://vm-mpws2016hp1-05.eaalab.hpi.uni-potsdam.de:8001'
-    PricewarsRequester.add_api_token(merchant_token)
-    logging.debug('Downloading files from Kafka ...')
-    kafka_url = os.getenv('PRICEWARS_KAFKA_REVERSE_PROXY_URL', 'http://127.0.0.1:8001')
-    kafka_api = KafkaApi(host=kafka_url)
-    csvs = {'marketSituation': None, 'buyOffer': None}
-    topics = ['marketSituation', 'buyOffer']
-
-    for topic in topics:
-        try:
-            data_url = kafka_api.request_csv_export_for_topic(topic)
-            # TODO error handling for empty csvs
-            resp = requests.get(data_url, timeout=2)
-            print("topic is" + topic)
-            resp.text
-            print('\n\n\n\n\n\n\n\n\n\n\n\n\n\n')
-            reader = csv.DictReader(resp.text.split("\n"))
-            csvs[topic] = [line for line in reader]
-        except Exception as e:
-            logging.warning('Could not download data for topic {} from kafka: {}'.format(topic, e))
-    logging.debug('Download finished')
-    if csvs[topics[0]] and csvs[topics[1]]:
-        # try:
-        return aggregate(csvs['marketSituation'], csvs['buyOffer'], merchant_id)
-        # except Exception as e:
-        #     print(csvs)
-    else:
-        logging.info('Received empty csv files!')
-        return None
+from merchant_sdk.models import Offer
 
 
 # TODO: adapt to new downloading process
@@ -94,68 +36,6 @@ def download_data(merchant_token):
     return csvs
 
 
-def aggregate(market_situation, sales, merchant_id):
-    vectors = dict()
-    logging.debug('Starting data aggregation')
-
-    timestamp = market_situation[0]['timestamp']
-    current_offers = []
-    sales_counter = 0
-    for situation in market_situation:
-        if timestamp == situation['timestamp']:
-            current_offers.append(situation)
-        else:
-            own_sales = []
-            # import pdb; pdb.set_trace()
-
-            while sales_counter < len(sales) and TimestampConverter.from_string(sales[sales_counter]['timestamp']) < TimestampConverter.from_string(situation['timestamp']):
-                if sales[sales_counter]['http_code'][0] == '2':
-                    own_sales.append(sales[sales_counter])
-                sales_counter += 1
-            vectors = calculate_features(current_offers, own_sales, merchant_id, vectors)
-            timestamp = situation['timestamp']
-            current_offers.clear()
-            current_offers.append(situation)
-    logging.debug('Finished data aggregation')
-    return vectors
-
-
-def calculate_features(offers, sales, merchant_id, vectors):
-    competitor_offers = defaultdict(dict)
-    own_offers = defaultdict(dict)
-    for offer in offers:
-        if offer['merchant_id'] == merchant_id:
-            own_offers[offer['product_id']][offer['offer_id']] = (offer['price'], offer['quality'])
-        else:
-            competitor_offers[offer['product_id']][offer['offer_id']] = (offer['price'], offer['quality'])
-
-    items_sold = [sold['offer_id'] for sold in sales]
-
-    for product_id, offers in own_offers.items():
-        # Layout: Ownprice, quality, price_rank, (amount_of_offers), average_price_on_market, distance_to_cheapest, (amount_of_comp)
-        for offer_id, values in offers.items():
-            features = []
-            own_price = float(values[0])
-            features.append(own_price)
-            features.append(int(values[1]))
-            price_list = [float(offer[0]) for offer in competitor_offers[product_id].values()]
-            # TODO remove the shit below, when fixed
-            if not price_list:
-                continue
-            features.append(calculate_price_rank(price_list, own_price))
-            features.append(len(competitor_offers[product_id].values()))
-            features.append(sum(price_list) / len(price_list))
-            features.append(own_price - min(price_list))
-
-            sold = 1 if offer_id in items_sold else 0
-
-            if not vectors.get(product_id):
-                vectors[product_id] = ([], [])
-            vectors[product_id][0].append(features)
-            vectors[product_id][1].append(sold)
-    return vectors
-
-
 def calculate_price_rank(price_list, own_price):
     price_rank = 1
     for price in price_list:
@@ -172,25 +52,6 @@ def calculate_min_price(offers):
 def calculate_merchant_id_from_token(token):
     return base64.b64encode(hashlib.sha256(
         token.encode('utf-8')).digest()).decode('utf-8')
-
-
-def extract_features_from_offer_snapshot(price, offers, merchant_id,
-                                         product_id):
-    # TODO refactor!
-
-    offers = [x for x in offers if product_id == x.product_id]
-    features = [price]
-    own_offer = [x for x in offers if x.merchant_id == merchant_id]
-    features.append(own_offer[0].quality)
-    price_list = [x.price for x in offers if x.merchant_id != merchant_id]
-    features.append(calculate_price_rank(price_list, price))
-    features.append(len(price_list))
-    # TODO remove the shit below, when fixed
-    if not price_list:
-        return features
-    features.append(sum(price_list) / len(price_list))
-    features.append(price - min(price_list))
-    return features
 
 
 def calculate_performance(sales_probabilities, sales, feature_count):
@@ -260,10 +121,7 @@ def precision_recall(sales_probabilities, sales):
 
 
 def extract_features(offer_id, offer_list: List[Offer]):
-    # [ [offer_id, price, quality] ]
-    # current_offer = [x for x in offer_list if offer_id == x[0]][0]
     current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
-    # other_offers = [x for x in offer_list if offer_id != x[0]]
     other_offers = [x for x in offer_list if offer_id != x.offer_id]
     rank = 1
     for oo in other_offers:

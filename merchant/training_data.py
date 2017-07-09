@@ -5,8 +5,8 @@ import logging
 from typing import List
 
 from kafka_downloader import download_kafka_files
+from merchant_sdk.models import Offer
 from models.joined_market_situation import JoinedMarketSituation
-from models.offer import Offer
 from utils import extract_features
 
 
@@ -120,12 +120,6 @@ class TrainingData:
                         timestamps_ms[0], timestamps_ms[-1], timestamps_s[0],
                         timestamps_s[-1], counter_s_same_timestamp))
 
-    def store_as_json(self):
-        data = {'market_situations': self.market_situations,
-                'sales': self.sales}
-        with open('training_data.json', 'w') as fp:
-            json.dump(data, fp)
-
     def append_marketplace_situations(self, line, csv_merchant_id=None):
         merchant_id = line['merchant_id']
         if csv_merchant_id == merchant_id:
@@ -136,7 +130,10 @@ class TrainingData:
         self.prepare_joined_data(line['product_id'], line['timestamp'], merchant_id)
         merchant = self.joined_data[line['product_id']][line['timestamp']].merchants[merchant_id]
         if line['offer_id'] not in merchant:
-            merchant[line['offer_id']] = Offer(line['offer_id'], float(line['price']), line['quality'])
+            merchant[line['offer_id']] = Offer(line['amount'], line['merchant_id'], line['offer_id'], line['price'],
+                                               line['prime'], line['product_id'], line['quality'],
+                                               {'standard': line['shipping_time_standard'], 'prime': line['shipping_time_prime']},
+                                               '', line['uid'])
 
     def prepare_joined_data(self, product_id, timestamp, merchant_id=None):
         if product_id not in self.joined_data:
