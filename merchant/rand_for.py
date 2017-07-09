@@ -11,7 +11,7 @@ from settings import Settings
 class RandomForestMerchant(MLMerchant):
     def __init__(self):
         self.model = dict()
-        super().__init__(Settings('rand_for_models.pkl'))
+        super().__init__(Settings.create('rand_for_models.pkl'))
 
     def train_model(self, features):
         # TODO include time and amount of sold items to featurelist

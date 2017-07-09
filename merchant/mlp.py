@@ -11,7 +11,7 @@ from settings import Settings
 class MLPMerchant(MLMerchant):
     def __init__(self):
         self.model = dict()
-        super().__init__(Settings('mlp_models.pkl'))
+        super().__init__(Settings.create('mlp_models.pkl'))
 
     def train_model(self, features):
         # TODO include time and amount of sold items to featurelist

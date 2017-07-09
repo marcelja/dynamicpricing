@@ -7,11 +7,13 @@ import os
 import pickle
 import sys
 from collections import defaultdict
+from typing import List
 
 import pandas as pd
 import requests
 
 from merchant_sdk.api import KafkaApi, PricewarsRequester
+from models.offer import Offer
 from timestamp_converter import TimestampConverter
 
 sys.path.append('./')
@@ -261,13 +263,15 @@ def precision_recall(sales_probabilities, sales):
     logging.info('Recall is: {}'.format(recall))
 
 
-def extract_features(offer_id, offer_list):
+def extract_features(offer_id, offer_list: List[Offer]):
     # [ [offer_id, price, quality] ]
-    current_offer = [x for x in offer_list if offer_id == x[0]][0]
-    other_offers = [x for x in offer_list if offer_id != x[0]]
+    # current_offer = [x for x in offer_list if offer_id == x[0]][0]
+    current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
+    # other_offers = [x for x in offer_list if offer_id != x[0]]
+    other_offers = [x for x in offer_list if offer_id != x.offer_id]
     rank = 1
     for oo in other_offers:
-        if oo[1] < current_offer[1]:
+        if oo.price < current_offer.price:
             rank += 1
     return [rank]
 

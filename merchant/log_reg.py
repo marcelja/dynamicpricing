@@ -11,7 +11,7 @@ from settings import Settings
 class LogisticRegressionMerchant(MLMerchant):
     def __init__(self):
         self.model = dict()
-        super().__init__(Settings('log_reg_models.pkl'))
+        super().__init__(Settings.create('log_reg_models.pkl'))
 
     def train_model(self, features):
         # TODO include time and amount of sold items to featurelist

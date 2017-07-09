@@ -12,9 +12,9 @@ sys.path.append('../')
 
 class RandomMerchant(SuperMerchant):
     def __init__(self):
-        settings = Settings(None, '7xCvFloHDuwm9iHDVYpjjoVzlXue01I7yU3EGsVTnSGwAXAg6yQqnvpZTkEUlWbk')
-        settings.shipping = 5
-        settings.max_req_per_sec = 40.0
+        settings = Settings.create(None, '7xCvFloHDuwm9iHDVYpjjoVzlXue01I7yU3EGsVTnSGwAXAg6yQqnvpZTkEUlWbk')
+        settings["shipping"] = 5
+        settings["max_req_per_sec"] = 40.0
         super().__init__(settings)
         self.run_logic_loop()
 

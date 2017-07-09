@@ -4,6 +4,7 @@ import json
 import logging
 
 from kafka_downloader import download_kafka_files
+from models.offer import Offer
 from utils import extract_features
 
 
@@ -50,7 +51,8 @@ class TrainingData:
             for merchant_id, offers in merchants.items():
                 if merchant_id != 'sales':
                     for offer_id, attributes in offers.items():
-                        offer_list.append([offer_id, attributes[0], attributes[1]])
+                        # offer_list.append([offer_id, attributes[0], attributes[1]])
+                        offer_list.append(Offer(offer_id, attributes[0], attributes[1]))
 
             if self.merchant_id in merchants:
                 for offer_id in merchants[self.merchant_id].keys():

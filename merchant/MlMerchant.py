@@ -3,6 +3,7 @@ import logging
 import os
 import random
 from abc import ABC, abstractmethod
+from typing import List
 
 import numpy as np
 
@@ -16,8 +17,7 @@ from utils import save_training_data, load_history
 class MLMerchant(ABC, SuperMerchant):
     def __init__(self, settings):
         super().__init__(settings)
-        self.data_file = self.settings.data_file
-        if os.path.isfile(self.data_file):
+        if os.path.isfile(self.settings["data_file"]):
             self.machine_learning()
             self.last_learning = datetime.datetime.now()
         else:
@@ -28,13 +28,13 @@ class MLMerchant(ABC, SuperMerchant):
     def initial_learning(self):
         self.training_data = TrainingData(self.merchant_token, self.merchant_id)
         self.training_data.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv',
-                                          self.settings.initial_merchant_id)
+                                          self.settings["initial_merchant_id"])
         # self.training_data.append_by_csvs('../data/ms1.csv', '../data/bo1.csv',
-        #                                   self.settings.initial_merchant_id)
+        #                                   self.settings["initial_merchant_id"])
         # self.training_data.append_by_csvs('../data/ms2.csv', '../data/bo2.csv',
-        #                                   self.settings.initial_merchant_id)
+        #                                   self.settings["initial_merchant_id"])
 
-        save_training_data(self.training_data, self.data_file)
+        save_training_data(self.training_data, self.settings["data_file"])
         self.train_model(self.training_data.convert_training_data())
         self.last_learning = datetime.datetime.now()
 
@@ -45,15 +45,15 @@ class MLMerchant(ABC, SuperMerchant):
         # p.join()
 
     def machine_learning_worker(self):
-        self.training_data = load_history(self.data_file)
+        self.training_data = load_history(self.settings["data_file"])
         self.training_data.append_by_kafka()
-        save_training_data(self.training_data, self.data_file)
+        save_training_data(self.training_data, self.settings["data_file"])
         self.train_model(self.training_data.convert_training_data())
         self.last_learning = datetime.datetime.now()
 
     def execute_logic(self):
         next_training_session = self.last_learning \
-                                + datetime.timedelta(minutes=self.settings.learning_interval)
+                                + datetime.timedelta(minutes=self.settings["learning_interval"])
         if next_training_session <= datetime.datetime.now():
             self.last_learning = datetime.datetime.now()
             self.machine_learning()
@@ -68,7 +68,7 @@ class MLMerchant(ABC, SuperMerchant):
 
         own_offers = [offer for offer in offers if offer.merchant_id == self.merchant_id]
         own_offers_by_uid = {offer.uid: offer for offer in own_offers}
-        missing_offers = self.settings.max_amount_of_offers - sum(offer.amount for offer in own_offers)
+        missing_offers = self.settings["max_amount_of_offers"] - sum(offer.amount for offer in own_offers)
 
         new_products = []
         for _ in range(missing_offers):
@@ -113,8 +113,8 @@ class MLMerchant(ABC, SuperMerchant):
                 else:
                     offer = Offer.from_product(product)
                     offer.prime = True
-                    offer.shipping_time['standard'] = self.settings.shipping
-                    offer.shipping_time['prime'] = self.settings.primeShipping
+                    offer.shipping_time['standard'] = self.settings["shipping"]
+                    offer.shipping_time['prime'] = self.settings["primeShipping"]
                     offer.merchant_id = self.merchant_id
                     offer.price = self.calculate_optimal_price(product, product_prices_by_uid, offer, current_offers=offers + [offer])
                     try:
@@ -124,7 +124,7 @@ class MLMerchant(ABC, SuperMerchant):
             except Exception as e:
                 print('could not handle product:', product, e)
 
-        return max(1.0, request_count) / self.settings.max_req_per_sec
+        return max(1.0, request_count) / self.settings["max_req_per_sec"]
 
     def calculate_optimal_price(self, product, product_prices_by_uid, offer, current_offers=None):
         """
@@ -143,18 +143,15 @@ class MLMerchant(ABC, SuperMerchant):
             return (random.randint(price * 100, 10000) / 100)
         try:
             # model = self.product_models[str(product.product_id)]
-            offer_list = [[x.offer_id,
-                           x.price,
-                           x.quality] for x in current_offers]
-            lst = []
-            potential_prices = list(range(1, 100, 1))
-            for potential_price in potential_prices:
-                potential_price_candidate = potential_price / 10.0
-                potential_price = price + potential_price_candidate
+            # offer_list = [[x.offer_id,
+            #                x.price,
+            #                x.quality] for x in current_offers]
+            # offer_list = [Offer(x.offer_id, x.price, x.quality) for x in current_offers]
+            offer_list = current_offers
 
-                next(x for x in offer_list if x[0] == offer.offer_id)[1] = potential_price
-                prediction_data = extract_features(offer.offer_id, offer_list)
-                lst.append(prediction_data)
+            potential_prices = list(range(1, 100, 1))
+            # lst = self.create_prediction_data(offer, offer_list, potential_prices, price)
+            lst = self.create_prediction_data(offer, offer_list, potential_prices, price)
 
             probas = self.predict(str(product.product_id), lst)
             # import pdb;pdb.set_trace()
@@ -168,6 +165,17 @@ class MLMerchant(ABC, SuperMerchant):
             # Fallback for new porduct
             print("RANDOMMMMMMMMM")
             return price * (np.random.exponential() + 0.99)
+
+    def create_prediction_data(self, own_offer, offer_list: List[Offer], potential_prices: List[int], price: float):
+        lst = []
+        for potential_price in potential_prices:
+            potential_price_candidate = potential_price / 10.0
+            potential_price = price + potential_price_candidate
+
+            setattr(next(offer for offer in offer_list if offer.offer_id == own_offer.offer_id), "price", potential_price)
+            prediction_data = extract_features(own_offer.offer_id, offer_list)
+            lst.append(prediction_data)
+        return lst
 
     @abstractmethod
     def train_model(self, features):
