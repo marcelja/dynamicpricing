@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 from merchant_sdk import MerchantBaseLogic
 from merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
 from merchant_sdk.models import Offer
@@ -44,6 +46,10 @@ class SuperMerchant(MerchantBaseLogic):
     '''
         Implement Abstract methods / Interface
     '''
+
+    @abstractmethod
+    def execute_logic(self):
+        pass
 
     def get_settings(self):
         return self.settings

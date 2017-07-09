@@ -70,9 +70,8 @@ class TrainingData:
 
     def create_offer_list(self, joined_market_situation: JoinedMarketSituation):
         offer_list = []
-        for merchant_id, offers in joined_market_situation.merchants.items():
-            for offer_id, attributes in offers.items():
-                offer_list.append(Offer(offer_id, attributes[0], attributes[1]))
+        for offers in joined_market_situation.merchants.values():
+            offer_list.extend(offers.values())
         return offer_list
 
     def convert_training_data(self):
@@ -137,7 +136,7 @@ class TrainingData:
         self.prepare_joined_data(line['product_id'], line['timestamp'], merchant_id)
         merchant = self.joined_data[line['product_id']][line['timestamp']].merchants[merchant_id]
         if line['offer_id'] not in merchant:
-            merchant[line['offer_id']] = [float(line['price']), line['quality']]
+            merchant[line['offer_id']] = Offer(line['offer_id'], float(line['price']), line['quality'])
 
     def prepare_joined_data(self, product_id, timestamp, merchant_id=None):
         if product_id not in self.joined_data:

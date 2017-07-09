@@ -5,7 +5,6 @@ import logging
 import math
 import os
 import pickle
-import sys
 from collections import defaultdict
 from typing import List
 
@@ -15,9 +14,6 @@ import requests
 from merchant_sdk.api import KafkaApi, PricewarsRequester
 from models.offer import Offer
 from timestamp_converter import TimestampConverter
-
-sys.path.append('./')
-sys.path.append('../')
 
 INITIAL_BUYOFFER_CSV_PATH = '../data/buyOffer.csv'
 INITIAL_MARKETSITUATION_CSV_PATH = '../data/marketSituation.csv'
