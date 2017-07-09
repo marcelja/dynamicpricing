@@ -1,5 +1,6 @@
 import argparse
 import logging
+from typing import List
 
 from sklearn.linear_model import LogisticRegression
 
@@ -13,7 +14,7 @@ class LogisticRegressionMerchant(MLMerchant):
         self.model = dict()
         super().__init__(Settings.create('log_reg_models.pkl'))
 
-    def train_model(self, features):
+    def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist
         logging.debug('Start training')
         for product_id, vector_tuple in features.items():
@@ -22,7 +23,7 @@ class LogisticRegressionMerchant(MLMerchant):
             self.model[product_id] = product_model
         logging.debug('Finished training')
 
-    def predict(self, product_id, situations):
+    def predict(self, product_id: str, situations: List[List[int]]):
         # TODO: What happens if there is no such product_id ?
         return self.model[product_id].predict_proba(situations)[:, 1]
 
