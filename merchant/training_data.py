@@ -77,7 +77,10 @@ class TrainingData:
     def convert_training_data(self):
         converted = dict()
         for product_id in self.joined_data.keys():
-            converted[product_id] = self.create_training_data(product_id)
+            new_training_data = self.create_training_data(product_id)
+            # check if at least one sale event is positive
+            if 1 in new_training_data[1]:
+                converted[product_id] = new_training_data
         return converted
 
     def extract_sales(self, product_id, offer_id, sales: List):

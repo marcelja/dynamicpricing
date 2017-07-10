@@ -13,7 +13,7 @@ class MLPMerchant(MLMerchant):
         self.model = dict()
         super().__init__(Settings.create('mlp_models.pkl'))
 
-    def train_model(self, features):
+    def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist
         logging.debug('Start training')
         for product_id, vector_tuple in features.items():

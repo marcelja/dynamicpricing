@@ -3,6 +3,7 @@ import logging
 from typing import List
 
 from sklearn.linear_model import LogisticRegression
+from sklearn.utils import shuffle
 
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
@@ -19,7 +20,8 @@ class LogisticRegressionMerchant(MLMerchant):
         logging.debug('Start training')
         for product_id, vector_tuple in features.items():
             product_model = LogisticRegression()
-            product_model.fit(vector_tuple[0], vector_tuple[1])
+            f, s = shuffle(vector_tuple[0], vector_tuple[1])
+            product_model.fit(f, s)
             self.model[product_id] = product_model
         logging.debug('Finished training')
 
