@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 import random
+import sys
 from abc import ABC, abstractmethod
 from typing import List
 
@@ -178,10 +179,12 @@ class MLMerchant(ABC, SuperMerchant):
 
             best_price = potential_prices[expected_profits.index(max(expected_profits))]
             print('.', end='')
+            sys.stdout.flush()
             return best_price
         except (KeyError, ValueError, AttributeError):
             # Fallback for new porduct
             print('R', end='')
+            sys.stdout.flush()
             return price * (np.random.exponential() + 0.99)
 
     def random_price(self, price: float):
