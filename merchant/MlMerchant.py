@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 import random
+import sys
 from abc import ABC, abstractmethod
 from typing import List
 
@@ -179,15 +180,17 @@ class MLMerchant(ABC, SuperMerchant):
             probas = self.predict(str(offer.product_id), lst)
             expected_profits = self.calculate_expected_profits(potential_prices, price, probas)
 
-            print(potential_prices[expected_profits.index(max(expected_profits))])
-            return potential_prices[expected_profits.index(max(expected_profits))]
+            best_price = potential_prices[expected_profits.index(max(expected_profits))]
+            print('.', end='')
+            sys.stdout.flush()
+            return best_price
         except (KeyError, ValueError, AttributeError):
             # Fallback for new porduct
-            print("RANDOMMMMMMMMM")
+            print('R', end='')
+            sys.stdout.flush()
             return price * (np.random.exponential() + 0.99)
 
     def random_price(self, price: float):
-        print("RAND \n\n\n\n\n")
         return (random.randint(price * 100, 10000) / 100)
 
     def calculate_expected_profits(self, potential_prices: List[float], price: float, probas: List):
