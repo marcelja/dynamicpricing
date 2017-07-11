@@ -12,14 +12,15 @@ from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
 from utils import extract_features
 from utils import save_training_data, load_history
+from threading import Thread, Lock
 
 
 class MLMerchant(ABC, SuperMerchant):
     def __init__(self, settings):
         super().__init__(settings)
+        self.model = dict()
         if os.path.isfile(self.settings["data_file"]):
             self.machine_learning()
-            self.last_learning = datetime.datetime.now()
         else:
             self.initial_learning()
 
@@ -35,20 +36,22 @@ class MLMerchant(ABC, SuperMerchant):
         #                                   self.settings["initial_merchant_id"])
 
         save_training_data(self.training_data, self.settings["data_file"])
-        self.train_model(self.training_data.convert_training_data())
+        self.model = self.train_model(self.training_data.convert_training_data())
         self.last_learning = datetime.datetime.now()
 
     def machine_learning(self):
-        self.machine_learning_worker()
-        # p = Process(target=self.machine_learning_worker)
-        # p.start()
-        # p.join()
+        thread = Thread(target=self.machine_learning_worker)
+        thread.start()
 
     def machine_learning_worker(self):
         self.training_data = load_history(self.settings["data_file"])
         self.training_data.append_by_kafka()
         save_training_data(self.training_data, self.settings["data_file"])
-        self.train_model(self.training_data.convert_training_data())
+        product_models = self.train_model(self.training_data.convert_training_data())
+        lock = Lock()
+        lock.acquire()
+        self.model = product_models
+        lock.release()
         self.last_learning = datetime.datetime.now()
 
     def execute_logic(self):

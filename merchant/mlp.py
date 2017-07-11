@@ -10,10 +10,10 @@ from settings import Settings
 
 class MLPMerchant(MLMerchant):
     def __init__(self):
-        self.model = dict()
         super().__init__(Settings.create('mlp_models.pkl'))
 
     def train_model(self, features: dict):
+        product_model_dict = dict()
         # TODO include time and amount of sold items to featurelist
         logging.debug('Start training')
         for product_id, vector_tuple in features.items():
@@ -21,8 +21,9 @@ class MLPMerchant(MLMerchant):
             product_model = MLPRegressor(hidden_layer_sizes=(10,), max_iter=100000)
             # TODO: what does partial_fit() do?
             product_model.fit(vector_tuple[0], vector_tuple[1])
-            self.model[product_id] = product_model
+            product_model_dict[product_id] = product_model
         logging.debug('Finished training')
+        return product_model_dict
 
     def predict(self, product_id, situations):
         # TODO: What happens if there is no such product_id ?
