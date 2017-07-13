@@ -19,7 +19,7 @@ class TrainingData:
                 sales: [(timestamp, offer_id), (timestamp, offer_id), ...],
                 merchants: {
                     merchant_id: {
-                        offer_id: [ price, quality, ...]
+                        offer_id: Offer { price, quality, ...}
                     }
                 }
             }
@@ -68,7 +68,8 @@ class TrainingData:
                         sales_vector.append(1)
                         features_vector.append(features)
 
-    def create_offer_list(self, joined_market_situation: JoinedMarketSituation):
+    @staticmethod
+    def create_offer_list(joined_market_situation: JoinedMarketSituation):
         offer_list = []
         for offers in joined_market_situation.merchants.values():
             offer_list.extend(offers.values())

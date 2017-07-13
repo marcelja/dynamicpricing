@@ -1,3 +1,4 @@
+import copy
 import datetime
 import logging
 import os
@@ -5,13 +6,12 @@ import random
 from abc import ABC, abstractmethod
 from typing import List
 
-import numpy as np
-
 from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
-from utils import extract_features
-from utils import save_training_data, load_history
+from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_FEATURES
+
+CALCULATE_PERFORMANCE = False
 
 
 class MLMerchant(ABC, SuperMerchant):
@@ -36,7 +36,41 @@ class MLMerchant(ABC, SuperMerchant):
 
         save_training_data(self.training_data, self.settings["data_file"])
         self.train_model(self.training_data.convert_training_data())
+        self.calculate_performance(copy.deepcopy(self.training_data))
         self.last_learning = datetime.datetime.now()
+
+    def calculate_performance(self, training_data: TrainingData):
+        if not CALCULATE_PERFORMANCE:
+            return
+        training_data_learning = TrainingData(self.merchant_token, self.merchant_id)
+        training_data_predicting = TrainingData(self.merchant_token, self.merchant_id)
+        for product_id, joined_market_situations in training_data.joined_data.items():
+            timestamps = list(joined_market_situations.keys())
+            timestamps_learning = timestamps[:int((len(timestamps) / 3) * 2)]
+            training_data_learning.joined_data[product_id] = dict()
+            for timestamp in timestamps_learning:
+                training_data_learning.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
+            timestamps_predicting = timestamps[int((len(timestamps) / 3) * 2):]
+            training_data_predicting.joined_data[product_id] = dict()
+            for timestamp in timestamps_predicting:
+                training_data_predicting.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
+        self.train_universal_model(training_data_learning.convert_training_data())
+        self.predict_and_calculate_performance(training_data_predicting)
+
+    def predict_and_calculate_performance(self, training_data_predicting: TrainingData):
+        sales_probabilities = []
+        sales = []
+        for joined_market_situations in training_data_predicting.joined_data.values():
+            for jms in joined_market_situations.values():
+                for offer in jms.sales:
+                    sales.append(1)
+                    try:
+                        features = extract_features(offer[1], TrainingData.create_offer_list(jms))
+                        sales_probabilities.append(self.predict_with_universal_model([features]))
+                    except IndexError:
+                        logging.warning("Ignore sale event for which no offer exist. -> FIXME!")
+        calculate_performance(sales_probabilities, sales, NUM_OF_FEATURES)
+        pass
 
     def machine_learning(self):
         self.machine_learning_worker()
@@ -49,6 +83,7 @@ class MLMerchant(ABC, SuperMerchant):
         self.training_data.append_by_kafka()
         save_training_data(self.training_data, self.settings["data_file"])
         self.train_model(self.training_data.convert_training_data())
+        self.calculate_performance(copy.deepcopy(self.training_data))
         self.last_learning = datetime.datetime.now()
 
     def execute_logic(self):
@@ -206,5 +241,13 @@ class MLMerchant(ABC, SuperMerchant):
         pass
 
     @abstractmethod
-    def predict(self, product_id, situations):
+    def train_universal_model(self, features: dict):
+        pass
+
+    @abstractmethod
+    def predict(self, product_id: str, situations: List[List[int]]):
+        pass
+
+    @abstractmethod
+    def predict_with_universal_model(self, situations: List[List[int]]):
         pass

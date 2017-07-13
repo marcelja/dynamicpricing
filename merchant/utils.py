@@ -4,12 +4,16 @@ import logging
 import math
 import os
 import pickle
+import traceback
 from typing import List
 
 import pandas as pd
+import sys
 
 from merchant_sdk.api import KafkaApi, PricewarsRequester
 from merchant_sdk.models import Offer
+
+NUM_OF_FEATURES = 1
 
 
 # TODO: adapt to new downloading process
@@ -54,13 +58,23 @@ def calculate_merchant_id_from_token(token):
         token.encode('utf-8')).digest()).decode('utf-8')
 
 
-def calculate_performance(sales_probabilities, sales, feature_count):
-    ll1, ll0 = calculate_aic(sales_probabilities, sales, feature_count)
-    calculate_mcfadden(ll1, ll0)
-    precision_recall(sales_probabilities, sales)
+def calculate_performance(sales_probabilities: List[float], sales: List[int], feature_count: int):
+    try:
+        ll1, ll0 = calculate_aic(sales_probabilities, sales, feature_count)
+        calculate_mcfadden(ll1, ll0)
+        precision_recall(sales_probabilities, sales)
+    except ValueError:
+        logging.error("Error in performance calculation!")
+        traceback.print_exc(file=sys.stdout)
 
 
-def calculate_aic(sales_probabilities, sales, feature_count):
+
+def calculate_aic(sales_probabilities: List[float], sales: List[int], feature_count: int):
+    # sales_probabilities: [0.35, 0.29, ...]
+    # sales: [0, 1, 1, 0, ...]
+    # feature_count: int
+
+
     # Für jede Situation:
     # verkauft? * log(verkaufswahrsch.) + (1 - verkauft?) * (1 - log(1-verkaufswahrsch.))
     # var LL  = sum{i in 1..B} ( y[i]*log(P[i]) + (1-y[i])*log(1-P[i]) );
@@ -127,6 +141,7 @@ def extract_features(offer_id: str, offer_list: List[Offer]):
     for oo in other_offers:
         if oo.price < current_offer.price:
             rank += 1
+    # if new features are added, update NUM_OF_FEATURES variable!
     return [rank]
 
 
