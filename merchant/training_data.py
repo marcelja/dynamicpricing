@@ -1,6 +1,5 @@
 import bisect
 import csv
-import json
 import logging
 from typing import List
 
@@ -84,7 +83,8 @@ class TrainingData:
                 converted[product_id] = new_training_data
         return converted
 
-    def extract_sales(self, product_id, offer_id, sales: List):
+    @staticmethod
+    def extract_sales(product_id, offer_id, sales: List):
         if not sales:
             return 0
         return [x[1] for x in sales].count(offer_id)
