@@ -13,7 +13,7 @@ import sys
 from merchant_sdk.api import KafkaApi, PricewarsRequester
 from merchant_sdk.models import Offer
 
-NUM_OF_FEATURES = 1
+NUM_OF_FEATURES = 16
 
 
 # TODO: adapt to new downloading process
