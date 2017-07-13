@@ -3,12 +3,14 @@ import datetime
 import logging
 import os
 import random
+import sys
 from abc import ABC, abstractmethod
 from typing import List
 
 from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
+from threading import Thread, Lock
 from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_FEATURES
 
 CALCULATE_PERFORMANCE = False
@@ -17,9 +19,9 @@ CALCULATE_PERFORMANCE = False
 class MLMerchant(ABC, SuperMerchant):
     def __init__(self, settings):
         super().__init__(settings)
+        self.model = dict()
         if os.path.isfile(self.settings["data_file"]):
             self.machine_learning()
-            self.last_learning = datetime.datetime.now()
         else:
             self.initial_learning()
 
@@ -35,7 +37,7 @@ class MLMerchant(ABC, SuperMerchant):
         #                                   self.settings["initial_merchant_id"])
 
         save_training_data(self.training_data, self.settings["data_file"])
-        self.train_model(self.training_data.convert_training_data())
+        self.model = self.train_model(self.training_data.convert_training_data())
         self.calculate_performance(copy.deepcopy(self.training_data))
         self.last_learning = datetime.datetime.now()
 
@@ -73,16 +75,18 @@ class MLMerchant(ABC, SuperMerchant):
         pass
 
     def machine_learning(self):
-        self.machine_learning_worker()
-        # p = Process(target=self.machine_learning_worker)
-        # p.start()
-        # p.join()
+        thread = Thread(target=self.machine_learning_worker)
+        thread.start()
 
     def machine_learning_worker(self):
         self.training_data = load_history(self.settings["data_file"])
         self.training_data.append_by_kafka()
         save_training_data(self.training_data, self.settings["data_file"])
-        self.train_model(self.training_data.convert_training_data())
+        product_models = self.train_model(self.training_data.convert_training_data())
+        lock = Lock()
+        lock.acquire()
+        self.model = product_models
+        lock.release()
         self.calculate_performance(copy.deepcopy(self.training_data))
         self.last_learning = datetime.datetime.now()
 
@@ -211,15 +215,17 @@ class MLMerchant(ABC, SuperMerchant):
             probas = self.predict(str(offer.product_id), lst)
             expected_profits = self.calculate_expected_profits(potential_prices, price, probas)
 
-            print(potential_prices[expected_profits.index(max(expected_profits))])
-            return potential_prices[expected_profits.index(max(expected_profits))]
+            best_price = potential_prices[expected_profits.index(max(expected_profits))]
+            print('.', end='')
+            sys.stdout.flush()
+            return best_price
         except (KeyError, ValueError, AttributeError):
             # Fallback for new porduct
-            print("RANDOMMMMMMMMM")
+            print('R', end='')
+            sys.stdout.flush()
             return price * (np.random.exponential() + 0.99)
 
     def random_price(self, price: float):
-        print("RAND \n\n\n\n\n")
         return (random.randint(price * 100, 10000) / 100)
 
     def calculate_expected_profits(self, potential_prices: List[float], price: float, probas: List):

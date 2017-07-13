@@ -8,23 +8,28 @@ from sklearn.utils import shuffle
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
 from settings import Settings
+from time import time
 
 
 class LogisticRegressionMerchant(MLMerchant):
     def __init__(self):
-        self.model = dict()
         self.universal_model: LogisticRegression = None
         super().__init__(Settings.create('log_reg_models.pkl'))
 
     def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist
+        product_model_dict = dict()
         logging.debug('Start training')
+        start_time = int(time() * 1000)
         for product_id, vector_tuple in features.items():
             product_model = LogisticRegression()
             f, s = shuffle(vector_tuple[0], vector_tuple[1])
             product_model.fit(f, s)
-            self.model[product_id] = product_model
+            product_model_dict[product_id] = product_model
+        end_time = int(time() * 1000)
         logging.debug('Finished training')
+        logging.debug('Training took {} ms'.format(end_time - start_time))
+        return product_model_dict
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')
@@ -48,6 +53,8 @@ class LogisticRegressionMerchant(MLMerchant):
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("requests").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(
         description='PriceWars Merchant doing Logistic Regression')
     parser.add_argument('--port',
