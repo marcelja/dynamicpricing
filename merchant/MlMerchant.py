@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import sys
+import numpy as np
 from abc import ABC, abstractmethod
 from threading import Thread, Lock
 from typing import List
