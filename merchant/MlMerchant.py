@@ -21,6 +21,7 @@ class MLMerchant(ABC, SuperMerchant):
     def __init__(self, settings):
         super().__init__(settings)
         self.model = dict()
+        self.last_learning = None
         if os.path.isfile(self.settings["data_file"]):
             self.machine_learning()
         else:
@@ -197,8 +198,9 @@ class MLMerchant(ABC, SuperMerchant):
             raise e
 
     def perform_learning_if_necessary(self):
-        next_training_session = self.last_learning + datetime.timedelta(minutes=self.settings["learning_interval"])
-        if next_training_session <= datetime.datetime.now():
+        if self.last_learning:
+            next_training_session = self.last_learning + datetime.timedelta(minutes=self.settings["learning_interval"])
+        if not self.last_learning or next_training_session <= datetime.datetime.now():
             self.last_learning = datetime.datetime.now()
             self.machine_learning()
 
