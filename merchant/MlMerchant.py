@@ -4,22 +4,24 @@ import logging
 import os
 import random
 import sys
+import numpy as np
 from abc import ABC, abstractmethod
+from threading import Thread, Lock
 from typing import List
 
 from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
-from threading import Thread, Lock
 from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_FEATURES
 
-CALCULATE_PERFORMANCE = False
+CALCULATE_PERFORMANCE = True
 
 
 class MLMerchant(ABC, SuperMerchant):
     def __init__(self, settings):
         super().__init__(settings)
         self.model = dict()
+        self.last_learning = None
         if os.path.isfile(self.settings["data_file"]):
             self.machine_learning()
         else:
@@ -56,7 +58,8 @@ class MLMerchant(ABC, SuperMerchant):
             training_data_predicting.joined_data[product_id] = dict()
             for timestamp in timestamps_predicting:
                 training_data_predicting.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
-        self.train_universal_model(training_data_learning.convert_training_data())
+        # self.train_universal_model(training_data_learning.convert_training_data())
+        self.train_universal_statsmodel(training_data_learning.convert_training_data())
         self.predict_and_calculate_performance(training_data_predicting)
 
     def predict_and_calculate_performance(self, training_data_predicting: TrainingData):
@@ -64,13 +67,20 @@ class MLMerchant(ABC, SuperMerchant):
         sales = []
         for joined_market_situations in training_data_predicting.joined_data.values():
             for jms in joined_market_situations.values():
-                for offer in jms.sales:
-                    sales.append(1)
-                    try:
-                        features = extract_features(offer[1], TrainingData.create_offer_list(jms))
-                        sales_probabilities.append(self.predict_with_universal_model([features]))
-                    except IndexError:
-                        logging.warning("Ignore sale event for which no offer exist. -> FIXME!")
+                if self.merchant_id in jms.merchants:
+                    for offer_id in jms.merchants[self.merchant_id].keys():
+                        amount_sales = TrainingData.extract_sales(jms.merchants[self.merchant_id][offer_id].product_id, offer_id, jms.sales)
+                        features = extract_features(offer_id, TrainingData.create_offer_list(jms))
+                        if amount_sales == 0:
+                            sales.append(0)
+                            # sales_probabilities.append(self.predict_with_universal_model([features]))
+                            sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
+                        else:
+                            for i in range(amount_sales):
+                                sales.append(1)
+                                # sales_probabilities.append(self.predict_with_universal_model([features]))
+                                sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
+
         calculate_performance(sales_probabilities, sales, NUM_OF_FEATURES)
         pass
 
@@ -188,8 +198,9 @@ class MLMerchant(ABC, SuperMerchant):
             raise e
 
     def perform_learning_if_necessary(self):
-        next_training_session = self.last_learning + datetime.timedelta(minutes=self.settings["learning_interval"])
-        if next_training_session <= datetime.datetime.now():
+        if self.last_learning:
+            next_training_session = self.last_learning + datetime.timedelta(minutes=self.settings["learning_interval"])
+        if not self.last_learning or next_training_session <= datetime.datetime.now():
             self.last_learning = datetime.datetime.now()
             self.machine_learning()
 
@@ -251,9 +262,17 @@ class MLMerchant(ABC, SuperMerchant):
         pass
 
     @abstractmethod
+    def train_universal_statsmodel(self, features: dict):
+        pass
+
+    @abstractmethod
     def predict(self, product_id: str, situations: List[List[int]]):
         pass
 
     @abstractmethod
     def predict_with_universal_model(self, situations: List[List[int]]):
+        pass
+
+    @abstractmethod
+    def predict_with_universal_statsmodel(self, situations: List[List[int]]):
         pass

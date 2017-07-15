@@ -4,11 +4,12 @@ import logging
 import math
 import os
 import pickle
+import sys
 import traceback
 from typing import List
 
+import numpy
 import pandas as pd
-import sys
 
 from merchant_sdk.api import KafkaApi, PricewarsRequester
 from merchant_sdk.models import Offer
@@ -69,41 +70,57 @@ def calculate_performance(sales_probabilities: List[float], sales: List[int], fe
         traceback.print_exc(file=sys.stdout)
 
 
-
 def calculate_aic(sales_probabilities: List[float], sales: List[int], feature_count: int):
     # sales_probabilities: [0.35, 0.29, ...]
     # sales: [0, 1, 1, 0, ...]
     # feature_count: int
 
-
     # Für jede Situation:
     # verkauft? * log(verkaufswahrsch.) + (1 - verkauft?) * (1 - log(1-verkaufswahrsch.))
     # var LL  = sum{i in 1..B} ( y[i]*log(P[i]) + (1-y[i])*log(1-P[i]) );
-
-    ll = 0
 
     # Nullmodel: Average sales probability based on actual sales
     # Some stuff to read about it:
     # https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-what-are-pseudo-r-squareds/
     # http://www.karteikarte.com/card/2013125/null-modell
 
-    ll0 = 0
+    # http://avesbiodiv.mncn.csic.es/estadistica/ejemploaic.pdf
+    # AIC = -2*ln(likelihood) + 2*K
+    # with k = number of parameters in the model
+    # with likelihood function from slides:
+    # product of p^yi ⋅(1−p)^1−yi (probability of sale if sold, counter probability else)
 
-    average_sales = sum(sales) / len(sales)
+    avg_sales = sum(sales) / len(sales)
 
-    for i in range(len(sales)):
-        ll += sales[i] * math.log(sales_probabilities[i]) + \
-              (1 - sales[i]) * (math.log(1 - sales_probabilities[i]))
-        ll0 += sales[i] * math.log(average_sales) + \
-               (1 - sales[i]) * (math.log(1 - average_sales))
+    ll = likelihood(sales, sales_probabilities)
+    logging.info('Log likelihood is: {}'.format(ll))
+
+    ll0 = likelihood_nullmodel(sales, avg_sales)
+    logging.info('LL0 is: {}'.format(ll0))
 
     aic = - 2 * ll + 2 * feature_count
-
-    logging.info('Log likelihood is: {}'.format(ll))
-    logging.info('LL0 is: {}'.format(ll0))
     logging.info('AIC is: {}'.format(aic))
 
     return ll, ll0
+
+
+def likelihood(sales, sales_probabilities):
+    ll = 0
+    for i in range(len(sales)):
+        ll += sales[i] * math.log(sales_probabilities[i]) + (1 - sales[i]) * (math.log(1 - sales_probabilities[i]))
+    return ll
+
+
+def log_likelihood(y_true, y_pred):
+    ones = numpy.full(len(y_pred), 1)
+    return sum(y_true * numpy.log(y_pred) + (ones - y_true) * numpy.log(ones - y_pred))
+
+
+def likelihood_nullmodel(sales, average_sales):
+    ll0 = 0
+    for i in range(len(sales)):
+        ll0 += sales[i] * math.log(average_sales) + (1 - sales[i]) * (math.log(1 - average_sales))
+    return ll0
 
 
 def calculate_mcfadden(ll1, ll0):
