@@ -91,7 +91,10 @@ def calculate_aic(sales_probabilities: List[float], sales: List[int], feature_co
     # with likelihood function from slides:
     # product of p^yi ⋅(1−p)^1−yi (probability of sale if sold, counter probability else)
 
-    avg_sales = sum(sales) / len(sales)
+    if len(sales) != 0:
+        avg_sales = sum(sales) / len(sales)
+    else:
+        avg_sales = 0
 
     ll = likelihood(sales, sales_probabilities)
     logging.info('Log likelihood is: {}'.format(ll))
