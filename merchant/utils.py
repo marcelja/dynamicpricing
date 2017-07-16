@@ -231,7 +231,7 @@ def calculate_price_differences(current_price, other_offers):
     price_list = sorted([float(x.price) for x in other_offers])
     result = []
     for i in [0, 1, 2]:
-        if i > len(price_list):
+        if i >= len(price_list):
             result.extend([0, 0])
             continue
         diffs = calculate_price_difference(current_price, price_list[i],
@@ -253,7 +253,10 @@ def calculate_price_difference(price1, price2, max_price):
 
 def calculate_average_price(offers):
     price_list = [float(x.price) for x in offers]
-    return sum(price_list) / len(price_list)
+    if len(price_list) != 0:
+        return sum(price_list) / len(price_list)
+    else:
+        return 0
 
 
 def load_history(file):

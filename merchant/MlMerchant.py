@@ -4,7 +4,6 @@ import logging
 import os
 import random
 import sys
-import numpy as np
 from abc import ABC, abstractmethod
 from threading import Thread, Lock
 from typing import List
@@ -14,7 +13,7 @@ import numpy as np
 from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
-from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_FEATURES
+from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_UNIVERSAL_FEATURES
 
 CALCULATE_PERFORMANCE = True
 
@@ -83,7 +82,7 @@ class MLMerchant(ABC, SuperMerchant):
                                 # sales_probabilities.append(self.predict_with_universal_model([features]))
                                 sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
 
-        calculate_performance(sales_probabilities, sales, NUM_OF_FEATURES)
+        calculate_performance(sales_probabilities, sales, NUM_OF_UNIVERSAL_FEATURES)
         pass
 
     def machine_learning(self):
@@ -231,7 +230,7 @@ class MLMerchant(ABC, SuperMerchant):
                 sys.stdout.flush()
             else:
                 lst = self.create_prediction_data(offer, current_offers, potential_prices, price, True)
-                probas = self.predict_with_universal_statsmodel(str(offer.product_id), lst)
+                probas = self.predict_with_universal_statsmodel(lst)
                 print('U', end='')
                 sys.stdout.flush()
 
