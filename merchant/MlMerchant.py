@@ -4,17 +4,17 @@ import logging
 import os
 import random
 import sys
-import numpy as np
 from abc import ABC, abstractmethod
 from threading import Thread, Lock
 from typing import List
 
 import numpy as np
+from sklearn.linear_model import LogisticRegression
 
 from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
-from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_FEATURES
+from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_UNIVERSAL_FEATURES
 
 CALCULATE_PERFORMANCE = True
 
@@ -42,27 +42,30 @@ class MLMerchant(ABC, SuperMerchant):
 
         save_training_data(self.training_data, self.settings["data_file"])
         self.model = self.train_model(self.training_data.convert_training_data())
-        self.calculate_performance(copy.deepcopy(self.training_data))
+        self.universal_model = self.train_universal_model(self.training_data.convert_training_data(True))
+        self.calculate_performance(self.training_data)
         self.last_learning = datetime.datetime.now()
 
     def calculate_performance(self, training_data: TrainingData):
         if not CALCULATE_PERFORMANCE:
             return
-        training_data_learning = TrainingData(self.merchant_token, self.merchant_id)
-        training_data_predicting = TrainingData(self.merchant_token, self.merchant_id)
-        for product_id, joined_market_situations in training_data.joined_data.items():
-            timestamps = list(joined_market_situations.keys())
-            timestamps_learning = timestamps[:int((len(timestamps) / 3) * 2)]
-            training_data_learning.joined_data[product_id] = dict()
-            for timestamp in timestamps_learning:
-                training_data_learning.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
-            timestamps_predicting = timestamps[int((len(timestamps) / 3) * 2):]
-            training_data_predicting.joined_data[product_id] = dict()
-            for timestamp in timestamps_predicting:
-                training_data_predicting.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
-        # self.train_universal_model(training_data_learning.convert_training_data())
-        self.train_universal_statsmodel(training_data_learning.convert_training_data())
-        self.predict_and_calculate_performance(training_data_predicting)
+        # training_data_learning = TrainingData(self.merchant_token, self.merchant_id)
+        # training_data_predicting = TrainingData(self.merchant_token, self.merchant_id)
+        # for product_id, joined_market_situations in training_data.joined_data.items():
+        #     timestamps = list(joined_market_situations.keys())
+        #     timestamps_learning = timestamps[:int((len(timestamps) / 3) * 2)]
+        #     training_data_learning.joined_data[product_id] = dict()
+        #     for timestamp in timestamps_learning:
+        #         training_data_learning.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
+        #     timestamps_predicting = timestamps[int((len(timestamps) / 3) * 2):]
+        #     training_data_predicting.joined_data[product_id] = dict()
+        #     for timestamp in timestamps_predicting:
+        #         training_data_predicting.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
+        # # self.train_universal_model(training_data_learning.convert_training_data())
+        # self.train_universal_model(training_data.convert_training_data(True))
+        self.predict_and_calculate_performance(training_data)
+        # self.predict_and_calculate_performance(training_data_predicting)
+        # self.predict_and_calculate_performance(training_data_learning)
 
     def predict_and_calculate_performance(self, training_data_predicting: TrainingData):
         sales_probabilities = []
@@ -76,15 +79,13 @@ class MLMerchant(ABC, SuperMerchant):
                         if amount_sales == 0:
                             sales.append(0)
                             # sales_probabilities.append(self.predict_with_universal_model([features]))
-                            sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
+                            sales_probabilities.append(self.predict_with_universal_model([features]))
                         else:
                             for i in range(amount_sales):
                                 sales.append(1)
                                 # sales_probabilities.append(self.predict_with_universal_model([features]))
-                                sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
-
-        calculate_performance(sales_probabilities, sales, NUM_OF_FEATURES)
-        pass
+                                sales_probabilities.append(self.predict_with_universal_model([features]))
+        calculate_performance(sales_probabilities, sales, NUM_OF_UNIVERSAL_FEATURES)
 
     def machine_learning(self):
         thread = Thread(target=self.machine_learning_worker)
@@ -95,11 +96,13 @@ class MLMerchant(ABC, SuperMerchant):
         self.training_data.append_by_kafka()
         save_training_data(self.training_data, self.settings["data_file"])
         product_models = self.train_model(self.training_data.convert_training_data())
+        universal_model: LogisticRegression = self.train_universal_model(self.training_data.convert_training_data(True))
         lock = Lock()
         lock.acquire()
         self.model = product_models
+        self.universal_model = universal_model
         lock.release()
-        self.calculate_performance(copy.deepcopy(self.training_data))
+        self.calculate_performance(self.training_data)
         self.last_learning = datetime.datetime.now()
 
     def execute_logic(self):
@@ -215,7 +218,9 @@ class MLMerchant(ABC, SuperMerchant):
         """
 
         price = product_prices_by_uid[offer.uid]
-        if random.uniform(0, 1) < 0.3:
+        if random.uniform(0, 1) < 0.05:
+            print('r', end='')
+            sys.stdout.flush()
             return self.random_price(price)
         else:
             return self.ml_highest_profit(current_offers, offer, price)
@@ -224,14 +229,14 @@ class MLMerchant(ABC, SuperMerchant):
         try:
             potential_prices = list(range(1, 100, 1))
 
-            if offer.product_id in self.model:
+            if str(offer.product_id) in self.model:
                 lst = self.create_prediction_data(offer, current_offers, potential_prices, price, False)
                 probas = self.predict(str(offer.product_id), lst)
                 print('.', end='')
                 sys.stdout.flush()
             else:
                 lst = self.create_prediction_data(offer, current_offers, potential_prices, price, True)
-                probas = self.predict_with_universal_statsmodel(str(offer.product_id), lst)
+                probas = self.predict_with_universal_model(lst)
                 print('U', end='')
                 sys.stdout.flush()
 
@@ -240,11 +245,12 @@ class MLMerchant(ABC, SuperMerchant):
             best_price = potential_prices[expected_profits.index(max(expected_profits))]
 
             return best_price
-        except (KeyError, ValueError, AttributeError):
+        except (KeyError, ValueError, AttributeError) as e:
             # Fallback for new porduct
             print('R', end='')
+            print(e)
             sys.stdout.flush()
-            return price * (np.random.exponential() + 0.99)
+            return price * (random.uniform(1.2, 3))
 
     def random_price(self, price: float):
         return (random.randint(price * 100, 10000) / 100)

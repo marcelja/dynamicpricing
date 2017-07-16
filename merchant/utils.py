@@ -14,8 +14,8 @@ import pandas as pd
 from merchant_sdk.api import KafkaApi, PricewarsRequester
 from merchant_sdk.models import Offer
 
-NUM_OF_UNIVERSAL_FEATURES = 1
-NUM_OF_PRODUCT_SPECIFIC_FEATURES = 1
+NUM_OF_UNIVERSAL_FEATURES = 5
+NUM_OF_PRODUCT_SPECIFIC_FEATURES = 16
 
 
 # TODO: adapt to new downloading process
@@ -42,6 +42,7 @@ def download_data(merchant_token):
     return csvs
 
 
+# Unused?
 def calculate_price_rank(price_list, own_price):
     price_rank = 1
     for price in price_list:
@@ -90,7 +91,10 @@ def calculate_aic(sales_probabilities: List[float], sales: List[int], feature_co
     # with likelihood function from slides:
     # product of p^yi ⋅(1−p)^1−yi (probability of sale if sold, counter probability else)
 
-    avg_sales = sum(sales) / len(sales)
+    if len(sales) != 0:
+        avg_sales = sum(sales) / len(sales)
+    else:
+        avg_sales = 0
 
     ll = likelihood(sales, sales_probabilities)
     logging.info('Log likelihood is: {}'.format(ll))
@@ -162,23 +166,100 @@ def extract_features(offer_id: str, offer_list: List[Offer], universal_features)
 def __extract_universal_features(offer_id: str, offer_list: List[Offer]):
     current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
     other_offers = [x for x in offer_list if offer_id != x.offer_id]
-    rank = 1
-    for oo in other_offers:
-        if oo.price < current_offer.price:
-            rank += 1
+
+    ranks = calculate_ranks(current_offer, other_offers)
+    price_differences = calculate_price_differences(float(current_offer.price),
+                                                    other_offers)
+
     # if new features are added, update NUM_OF_UNIVERSAL_FEATURES variable!
-    return [rank]
+    features = [ranks[0],  # price_rank
+                # ranks[1],  # quality_rank
+                # ranks[2],  # shipping_time_rank
+                len(offer_list),  # amount_offers
+                # 1 if current_offer.prime == 'True' else 0,  # prime
+                price_differences[1],  # price_diff_to_min_in_%
+                price_differences[3],  # price_diff_to_2nd_min_in_%
+                price_differences[5],  # price_diff_to_3rd_min_in_%
+                ]
+    return features
 
 
 def __extract_product_specific_features(offer_id: str, offer_list: List[Offer]):
     current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
     other_offers = [x for x in offer_list if offer_id != x.offer_id]
-    rank = 1
-    for oo in other_offers:
-        if oo.price < current_offer.price:
-            rank += 1
+
+    ranks = calculate_ranks(current_offer, other_offers)
+    price_differences = calculate_price_differences(float(current_offer.price),
+                                                    other_offers)
+
     # if new features are added, update NUM_OF_PRODUCT_SPECIFIC_FEATURES variable!
-    return [rank]
+    features = [ranks[0],  # price_rank
+                ranks[1],  # quality_rank
+                ranks[2],  # shipping_time_rank
+                len(offer_list),  # amount_offers
+                1 if current_offer.prime == 'True' else 0,  # prime
+                price_differences[1],  # price_diff_to_min_in_%
+                price_differences[3],  # price_diff_to_2nd_min_in_%
+                price_differences[5],  # price_diff_to_3rd_min_in_%
+
+                # disable following for universal model
+                float(current_offer.price),  # price
+                int(current_offer.quality),  # quality
+                int(current_offer.shipping_time['standard']),  # shipping_time
+                calculate_average_price(other_offers),  # avg_price
+                calculate_average_price(offer_list),  # avg_price_with_current_offer
+                price_differences[0],  # price_diff_to_min
+                price_differences[2],  # price_diff_to_2nd_min
+                price_differences[4]  # price_diff_to_3rd_min
+                ]
+    return features
+
+
+def calculate_ranks(current_offer, other_offers):
+    price_rank = 1
+    quality_rank = 1
+    shipping_time_rank = 1
+
+    for oo in other_offers:
+        if float(oo.price) < float(current_offer.price):
+            price_rank += 1
+        if int(oo.quality) < int(current_offer.quality):
+            quality_rank += 1
+        if int(oo.shipping_time['standard']) < int(current_offer.shipping_time['standard']):
+            shipping_time_rank += 1
+    return price_rank, quality_rank, shipping_time_rank
+
+
+def calculate_price_differences(current_price, other_offers):
+    price_list = sorted([float(x.price) for x in other_offers])
+    result = []
+    for i in [0, 1, 2]:
+        if i >= len(price_list):
+            result.extend([0, 0])
+            continue
+        diffs = calculate_price_difference(current_price, price_list[i],
+                                           price_list[-1])
+        result.extend(diffs)
+    return result
+
+
+def calculate_price_difference(price1, price2, max_price):
+    diff = price1 - price2
+    if price1 <= price2:
+        diff_in_percent = 0.
+    elif price1 >= max_price:
+        diff_in_percent = 1.
+    else:
+        diff_in_percent = (price1 - price2) / (max_price - price2)
+    return [diff, diff_in_percent]
+
+
+def calculate_average_price(offers):
+    price_list = [float(x.price) for x in offers]
+    if len(price_list) != 0:
+        return sum(price_list) / len(price_list)
+    else:
+        return 0
 
 
 def load_history(file):

@@ -15,7 +15,6 @@ from settings import Settings
 
 class LogisticRegressionMerchant(MLMerchant):
     def __init__(self):
-        self.universal_model: LogisticRegression = None
         self.universal_model_stat: Logit = None
         super().__init__(Settings.create('log_reg_models.pkl'))
 
@@ -36,15 +35,16 @@ class LogisticRegressionMerchant(MLMerchant):
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')
-        self.universal_model = LogisticRegression()
+        universal_model = LogisticRegression()
         f_vector = []
         s_vector = []
         for product_id, vector_tuple in features.items():
             f_vector.extend(vector_tuple[0])
             s_vector.extend(vector_tuple[1])
         f, s = shuffle(f_vector, s_vector)
-        self.universal_model.fit(f, s)
+        universal_model.fit(f, s)
         logging.debug('Finished training universal model')
+        return universal_model
 
     def train_universal_statsmodel(self, features: dict):
         logging.debug('Start training universal model')
@@ -53,9 +53,8 @@ class LogisticRegressionMerchant(MLMerchant):
         for product_id, vector_tuple in features.items():
             f_vector.extend(vector_tuple[0])
             s_vector.extend(vector_tuple[1])
-        f, s = shuffle(f_vector, s_vector)
 
-        model = sm.Logit(s, f)
+        model = sm.Logit(s_vector, f_vector)
         self.universal_model_stat = model.fit(disp=False)
         print(self.universal_model_stat.summary())
         logging.debug('Finished training universal model')
