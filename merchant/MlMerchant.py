@@ -4,7 +4,6 @@ import logging
 import os
 import random
 import sys
-import numpy as np
 from abc import ABC, abstractmethod
 from threading import Thread, Lock
 from typing import List
@@ -82,7 +81,6 @@ class MLMerchant(ABC, SuperMerchant):
                                 sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
 
         calculate_performance(sales_probabilities, sales, NUM_OF_FEATURES)
-        pass
 
     def machine_learning(self):
         thread = Thread(target=self.machine_learning_worker)
@@ -213,7 +211,9 @@ class MLMerchant(ABC, SuperMerchant):
         """
 
         price = product_prices_by_uid[offer.uid]
-        if random.uniform(0, 1) < 0.3:
+        if random.uniform(0, 1) < 0.05:
+            print('r', end='')
+            sys.stdout.flush()
             return self.random_price(price)
         else:
             return self.ml_highest_profit(current_offers, offer, price)
@@ -234,7 +234,7 @@ class MLMerchant(ABC, SuperMerchant):
             # Fallback for new porduct
             print('R', end='')
             sys.stdout.flush()
-            return price * (np.random.exponential() + 0.99)
+            return price * (random.uniform(1.2, 3))
 
     def random_price(self, price: float):
         return (random.randint(price * 100, 10000) / 100)
