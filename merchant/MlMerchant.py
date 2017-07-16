@@ -60,7 +60,7 @@ class MLMerchant(ABC, SuperMerchant):
             for timestamp in timestamps_predicting:
                 training_data_predicting.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
         # self.train_universal_model(training_data_learning.convert_training_data())
-        self.train_universal_statsmodel(training_data_learning.convert_training_data())
+        self.train_universal_statsmodel(training_data_learning.convert_training_data(True))
         self.predict_and_calculate_performance(training_data_predicting)
 
     def predict_and_calculate_performance(self, training_data_predicting: TrainingData):
