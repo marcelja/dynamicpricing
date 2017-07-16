@@ -1,6 +1,5 @@
 import bisect
 import csv
-import json
 import logging
 from typing import List
 
@@ -43,7 +42,7 @@ class TrainingData:
                 timestamps.add(timestamp)
         self.timestamps = sorted(timestamps)
 
-    def create_training_data(self, product_id, interval_length=5):
+    def create_training_data(self, product_id, universal_features, interval_length=5):
         # self.update_timestamps()
         product = self.joined_data[product_id]
         sales_vector = []
@@ -51,15 +50,15 @@ class TrainingData:
 
         for timestamp, joined_market_situation in product.items():
             offer_list = self.create_offer_list(joined_market_situation)
-            self.append_to_vectors_from_features(features_vector, sales_vector, joined_market_situation, offer_list, product_id)
+            self.append_to_vectors_from_features(features_vector, sales_vector, joined_market_situation, offer_list, product_id, universal_features)
 
-        return (features_vector, sales_vector)
+        return features_vector, sales_vector
 
-    def append_to_vectors_from_features(self, features_vector, sales_vector, joined_market_situation: JoinedMarketSituation, offer_list, product_id):
+    def append_to_vectors_from_features(self, features_vector, sales_vector, joined_market_situation: JoinedMarketSituation, offer_list, product_id, universal_features):
         if self.merchant_id in joined_market_situation.merchants:
             for offer_id in joined_market_situation.merchants[self.merchant_id].keys():
                 amount_sales = self.extract_sales(product_id, offer_id, joined_market_situation.sales)
-                features = extract_features(offer_id, offer_list)
+                features = extract_features(offer_id, offer_list, universal_features)
                 if amount_sales == 0:
                     sales_vector.append(0)
                     features_vector.append(features)
@@ -75,16 +74,17 @@ class TrainingData:
             offer_list.extend(offers.values())
         return offer_list
 
-    def convert_training_data(self):
+    def convert_training_data(self, universal_features=False):
         converted = dict()
         for product_id in self.joined_data.keys():
-            new_training_data = self.create_training_data(product_id)
+            new_training_data = self.create_training_data(product_id, universal_features)
             # check if at least one sale event is positive
             if 1 in new_training_data[1]:
                 converted[product_id] = new_training_data
         return converted
 
-    def extract_sales(self, product_id, offer_id, sales: List):
+    @staticmethod
+    def extract_sales(product_id, offer_id, sales: List):
         if not sales:
             return 0
         return [x[1] for x in sales].count(offer_id)

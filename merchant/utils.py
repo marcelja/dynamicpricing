@@ -4,16 +4,18 @@ import logging
 import math
 import os
 import pickle
+import sys
 import traceback
 from typing import List
 
+import numpy
 import pandas as pd
-import sys
 
 from merchant_sdk.api import KafkaApi, PricewarsRequester
 from merchant_sdk.models import Offer
 
-NUM_OF_FEATURES = 16
+NUM_OF_UNIVERSAL_FEATURES = 8
+NUM_OF_PRODUCT_SPECIFIC_FEATURES = 16
 
 
 # TODO: adapt to new downloading process
@@ -69,41 +71,57 @@ def calculate_performance(sales_probabilities: List[float], sales: List[int], fe
         traceback.print_exc(file=sys.stdout)
 
 
-
 def calculate_aic(sales_probabilities: List[float], sales: List[int], feature_count: int):
     # sales_probabilities: [0.35, 0.29, ...]
     # sales: [0, 1, 1, 0, ...]
     # feature_count: int
 
-
     # Für jede Situation:
     # verkauft? * log(verkaufswahrsch.) + (1 - verkauft?) * (1 - log(1-verkaufswahrsch.))
     # var LL  = sum{i in 1..B} ( y[i]*log(P[i]) + (1-y[i])*log(1-P[i]) );
-
-    ll = 0
 
     # Nullmodel: Average sales probability based on actual sales
     # Some stuff to read about it:
     # https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-what-are-pseudo-r-squareds/
     # http://www.karteikarte.com/card/2013125/null-modell
 
-    ll0 = 0
+    # http://avesbiodiv.mncn.csic.es/estadistica/ejemploaic.pdf
+    # AIC = -2*ln(likelihood) + 2*K
+    # with k = number of parameters in the model
+    # with likelihood function from slides:
+    # product of p^yi ⋅(1−p)^1−yi (probability of sale if sold, counter probability else)
 
-    average_sales = sum(sales) / len(sales)
+    avg_sales = sum(sales) / len(sales)
 
-    for i in range(len(sales)):
-        ll += sales[i] * math.log(sales_probabilities[i]) + \
-              (1 - sales[i]) * (math.log(1 - sales_probabilities[i]))
-        ll0 += sales[i] * math.log(average_sales) + \
-               (1 - sales[i]) * (math.log(1 - average_sales))
+    ll = likelihood(sales, sales_probabilities)
+    logging.info('Log likelihood is: {}'.format(ll))
+
+    ll0 = likelihood_nullmodel(sales, avg_sales)
+    logging.info('LL0 is: {}'.format(ll0))
 
     aic = - 2 * ll + 2 * feature_count
-
-    logging.info('Log likelihood is: {}'.format(ll))
-    logging.info('LL0 is: {}'.format(ll0))
     logging.info('AIC is: {}'.format(aic))
 
     return ll, ll0
+
+
+def likelihood(sales, sales_probabilities):
+    ll = 0
+    for i in range(len(sales)):
+        ll += sales[i] * math.log(sales_probabilities[i]) + (1 - sales[i]) * (math.log(1 - sales_probabilities[i]))
+    return ll
+
+
+def log_likelihood(y_true, y_pred):
+    ones = numpy.full(len(y_pred), 1)
+    return sum(y_true * numpy.log(y_pred) + (ones - y_true) * numpy.log(ones - y_pred))
+
+
+def likelihood_nullmodel(sales, average_sales):
+    ll0 = 0
+    for i in range(len(sales)):
+        ll0 += sales[i] * math.log(average_sales) + (1 - sales[i]) * (math.log(1 - average_sales))
+    return ll0
 
 
 def calculate_mcfadden(ll1, ll0):
@@ -135,7 +153,14 @@ def precision_recall(sales_probabilities, sales):
     logging.info('Recall is: {}'.format(recall))
 
 
-def extract_features(offer_id: str, offer_list: List[Offer]):
+def extract_features(offer_id: str, offer_list: List[Offer], universal_features):
+    if universal_features:
+        return __extract_universal_features(offer_id, offer_list)
+    else:
+        return __extract_product_specific_features(offer_id, offer_list)
+
+
+def __extract_universal_features(offer_id: str, offer_list: List[Offer]):
     current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
     other_offers = [x for x in offer_list if offer_id != x.offer_id]
 
@@ -143,25 +168,46 @@ def extract_features(offer_id: str, offer_list: List[Offer]):
     price_differences = calculate_price_differences(float(current_offer.price),
                                                     other_offers)
 
-    # if new features are added, update NUM_OF_FEATURES variable!
-    features = [ranks[0], # price_rank
-                ranks[1], # quality_rank
-                ranks[2], # shipping_time_rank
-                len(offer_list), # amount_offers
-                1 if current_offer.prime == 'True' else 0, # prime
-                price_differences[1], # price_diff_to_min_in_%
-                price_differences[3], # price_diff_to_2nd_min_in_%
-                price_differences[5], # price_diff_to_3rd_min_in_%
+    # if new features are added, update NUM_OF_UNIVERSAL_FEATURES variable!
+    features = [ranks[0],  # price_rank
+                ranks[1],  # quality_rank
+                ranks[2],  # shipping_time_rank
+                len(offer_list),  # amount_offers
+                1 if current_offer.prime == 'True' else 0,  # prime
+                price_differences[1],  # price_diff_to_min_in_%
+                price_differences[3],  # price_diff_to_2nd_min_in_%
+                price_differences[5],  # price_diff_to_3rd_min_in_%
+                ]
+    return features
+
+
+def __extract_product_specific_features(offer_id: str, offer_list: List[Offer]):
+    current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
+    other_offers = [x for x in offer_list if offer_id != x.offer_id]
+
+    ranks = calculate_ranks(current_offer, other_offers)
+    price_differences = calculate_price_differences(float(current_offer.price),
+                                                    other_offers)
+
+    # if new features are added, update NUM_OF_PRODUCT_SPECIFIC_FEATURES variable!
+    features = [ranks[0],  # price_rank
+                ranks[1],  # quality_rank
+                ranks[2],  # shipping_time_rank
+                len(offer_list),  # amount_offers
+                1 if current_offer.prime == 'True' else 0,  # prime
+                price_differences[1],  # price_diff_to_min_in_%
+                price_differences[3],  # price_diff_to_2nd_min_in_%
+                price_differences[5],  # price_diff_to_3rd_min_in_%
 
                 # disable following for universal model
-                float(current_offer.price), # price
-                int(current_offer.quality), # quality
-                int(current_offer.shipping_time['standard']), # shipping_time
-                calculate_average_price(other_offers), # avg_price
-                calculate_average_price(offer_list), # avg_price_with_current_offer
-                price_differences[0], # price_diff_to_min
-                price_differences[2], # price_diff_to_2nd_min
-                price_differences[4] # price_diff_to_3rd_min
+                float(current_offer.price),  # price
+                int(current_offer.quality),  # quality
+                int(current_offer.shipping_time['standard']),  # shipping_time
+                calculate_average_price(other_offers),  # avg_price
+                calculate_average_price(offer_list),  # avg_price_with_current_offer
+                price_differences[0],  # price_diff_to_min
+                price_differences[2],  # price_diff_to_2nd_min
+                price_differences[4]  # price_diff_to_3rd_min
                 ]
     return features
 
@@ -178,7 +224,7 @@ def calculate_ranks(current_offer, other_offers):
             quality_rank += 1
         if int(oo.shipping_time['standard']) < int(current_offer.shipping_time['standard']):
             shipping_time_rank += 1
-    return (price_rank, quality_rank, shipping_time_rank)
+    return price_rank, quality_rank, shipping_time_rank
 
 
 def calculate_price_differences(current_price, other_offers):

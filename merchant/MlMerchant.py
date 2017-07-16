@@ -5,15 +5,17 @@ import os
 import random
 import sys
 from abc import ABC, abstractmethod
+from threading import Thread, Lock
 from typing import List
+
+import numpy as np
 
 from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
-from threading import Thread, Lock
 from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_FEATURES
 
-CALCULATE_PERFORMANCE = False
+CALCULATE_PERFORMANCE = True
 
 
 class MLMerchant(ABC, SuperMerchant):
@@ -56,7 +58,8 @@ class MLMerchant(ABC, SuperMerchant):
             training_data_predicting.joined_data[product_id] = dict()
             for timestamp in timestamps_predicting:
                 training_data_predicting.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
-        self.train_universal_model(training_data_learning.convert_training_data())
+        # self.train_universal_model(training_data_learning.convert_training_data())
+        self.train_universal_statsmodel(training_data_learning.convert_training_data())
         self.predict_and_calculate_performance(training_data_predicting)
 
     def predict_and_calculate_performance(self, training_data_predicting: TrainingData):
@@ -64,13 +67,20 @@ class MLMerchant(ABC, SuperMerchant):
         sales = []
         for joined_market_situations in training_data_predicting.joined_data.values():
             for jms in joined_market_situations.values():
-                for offer in jms.sales:
-                    sales.append(1)
-                    try:
-                        features = extract_features(offer[1], TrainingData.create_offer_list(jms))
-                        sales_probabilities.append(self.predict_with_universal_model([features]))
-                    except IndexError:
-                        logging.warning("Ignore sale event for which no offer exist. -> FIXME!")
+                if self.merchant_id in jms.merchants:
+                    for offer_id in jms.merchants[self.merchant_id].keys():
+                        amount_sales = TrainingData.extract_sales(jms.merchants[self.merchant_id][offer_id].product_id, offer_id, jms.sales)
+                        features = extract_features(offer_id, TrainingData.create_offer_list(jms), True)
+                        if amount_sales == 0:
+                            sales.append(0)
+                            # sales_probabilities.append(self.predict_with_universal_model([features]))
+                            sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
+                        else:
+                            for i in range(amount_sales):
+                                sales.append(1)
+                                # sales_probabilities.append(self.predict_with_universal_model([features]))
+                                sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
+
         calculate_performance(sales_probabilities, sales, NUM_OF_FEATURES)
         pass
 
@@ -210,14 +220,22 @@ class MLMerchant(ABC, SuperMerchant):
     def ml_highest_profit(self, current_offers: List[Offer], offer: Offer, price: float):
         try:
             potential_prices = list(range(1, 100, 1))
-            lst = self.create_prediction_data(offer, current_offers, potential_prices, price)
 
-            probas = self.predict(str(offer.product_id), lst)
+            if offer.product_id in self.model:
+                lst = self.create_prediction_data(offer, current_offers, potential_prices, price, False)
+                probas = self.predict(str(offer.product_id), lst)
+                print('.', end='')
+                sys.stdout.flush()
+            else:
+                lst = self.create_prediction_data(offer, current_offers, potential_prices, price, True)
+                probas = self.predict_with_universal_statsmodel(str(offer.product_id), lst)
+                print('U', end='')
+                sys.stdout.flush()
+
             expected_profits = self.calculate_expected_profits(potential_prices, price, probas)
 
             best_price = potential_prices[expected_profits.index(max(expected_profits))]
-            print('.', end='')
-            sys.stdout.flush()
+
             return best_price
         except (KeyError, ValueError, AttributeError):
             # Fallback for new porduct
@@ -231,14 +249,14 @@ class MLMerchant(ABC, SuperMerchant):
     def calculate_expected_profits(self, potential_prices: List[float], price: float, probas: List):
         return [(proba * (potential_prices[i] - price)) for i, proba in enumerate(probas)]
 
-    def create_prediction_data(self, own_offer: Offer, current_offers: List[Offer], potential_prices: List[int], price: float):
+    def create_prediction_data(self, own_offer: Offer, current_offers: List[Offer], potential_prices: List[int], price: float, universal_features: bool):
         lst = []
         for potential_price in potential_prices:
             potential_price_candidate = potential_price / 10.0
             potential_price = price + potential_price_candidate
 
             setattr(next(offer for offer in current_offers if offer.offer_id == own_offer.offer_id), "price", potential_price)
-            prediction_data = extract_features(own_offer.offer_id, current_offers)
+            prediction_data = extract_features(own_offer.offer_id, current_offers, universal_features)
             lst.append(prediction_data)
         return lst
 
@@ -251,9 +269,17 @@ class MLMerchant(ABC, SuperMerchant):
         pass
 
     @abstractmethod
+    def train_universal_statsmodel(self, features: dict):
+        pass
+
+    @abstractmethod
     def predict(self, product_id: str, situations: List[List[int]]):
         pass
 
     @abstractmethod
     def predict_with_universal_model(self, situations: List[List[int]]):
+        pass
+
+    @abstractmethod
+    def predict_with_universal_statsmodel(self, situations: List[List[int]]):
         pass
