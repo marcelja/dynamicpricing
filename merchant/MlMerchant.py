@@ -42,7 +42,7 @@ class MLMerchant(ABC, SuperMerchant):
 
         save_training_data(self.training_data, self.settings["data_file"])
         self.model = self.train_model(self.training_data.convert_training_data())
-        self.train_universal_model(self.training_data.convert_training_data(True))
+        self.universal_model = self.train_universal_model(self.training_data.convert_training_data(True))
         self.calculate_performance(self.training_data)
         self.last_learning = datetime.datetime.now()
 
