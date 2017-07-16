@@ -6,6 +6,7 @@ sys.path.append('../')
 from merchant_sdk import MerchantBaseLogic, MerchantServer
 from merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
 from merchant_sdk.models import Offer
+import os
 
 if os.getenv('API_TOKEN'):
     merchant_token = os.getenv('API_TOKEN')
