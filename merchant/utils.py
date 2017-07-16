@@ -14,7 +14,8 @@ import pandas as pd
 from merchant_sdk.api import KafkaApi, PricewarsRequester
 from merchant_sdk.models import Offer
 
-NUM_OF_FEATURES = 1
+NUM_OF_UNIVERSAL_FEATURES = 1
+NUM_OF_PRODUCT_SPECIFIC_FEATURES = 1
 
 
 # TODO: adapt to new downloading process
@@ -151,14 +152,32 @@ def precision_recall(sales_probabilities, sales):
     logging.info('Recall is: {}'.format(recall))
 
 
-def extract_features(offer_id: str, offer_list: List[Offer]):
+def extract_features(offer_id: str, offer_list: List[Offer], universal_features):
+    if universal_features:
+        return __extract_universal_features(offer_id, offer_list)
+    else:
+        return __extract_product_specific_features(offer_id, offer_list)
+
+
+def __extract_universal_features(offer_id: str, offer_list: List[Offer]):
     current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
     other_offers = [x for x in offer_list if offer_id != x.offer_id]
     rank = 1
     for oo in other_offers:
         if oo.price < current_offer.price:
             rank += 1
-    # if new features are added, update NUM_OF_FEATURES variable!
+    # if new features are added, update NUM_OF_UNIVERSAL_FEATURES variable!
+    return [rank]
+
+
+def __extract_product_specific_features(offer_id: str, offer_list: List[Offer]):
+    current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
+    other_offers = [x for x in offer_list if offer_id != x.offer_id]
+    rank = 1
+    for oo in other_offers:
+        if oo.price < current_offer.price:
+            rank += 1
+    # if new features are added, update NUM_OF_PRODUCT_SPECIFIC_FEATURES variable!
     return [rank]
 
 
