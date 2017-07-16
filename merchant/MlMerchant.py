@@ -60,8 +60,9 @@ class MLMerchant(ABC, SuperMerchant):
             for timestamp in timestamps_predicting:
                 training_data_predicting.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
         # self.train_universal_model(training_data_learning.convert_training_data())
-        self.train_universal_statsmodel(training_data_learning.convert_training_data(True))
+        self.train_universal_model(training_data_learning.convert_training_data(True))
         self.predict_and_calculate_performance(training_data_predicting)
+        # self.predict_and_calculate_performance(training_data_learning)
 
     def predict_and_calculate_performance(self, training_data_predicting: TrainingData):
         sales_probabilities = []
@@ -75,12 +76,12 @@ class MLMerchant(ABC, SuperMerchant):
                         if amount_sales == 0:
                             sales.append(0)
                             # sales_probabilities.append(self.predict_with_universal_model([features]))
-                            sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
+                            sales_probabilities.append(self.predict_with_universal_model([features]))
                         else:
                             for i in range(amount_sales):
                                 sales.append(1)
                                 # sales_probabilities.append(self.predict_with_universal_model([features]))
-                                sales_probabilities.append(self.predict_with_universal_statsmodel([features]))
+                                sales_probabilities.append(self.predict_with_universal_model([features]))
 
         calculate_performance(sales_probabilities, sales, NUM_OF_UNIVERSAL_FEATURES)
         pass

@@ -14,7 +14,7 @@ import pandas as pd
 from merchant_sdk.api import KafkaApi, PricewarsRequester
 from merchant_sdk.models import Offer
 
-NUM_OF_UNIVERSAL_FEATURES = 8
+NUM_OF_UNIVERSAL_FEATURES = 5
 NUM_OF_PRODUCT_SPECIFIC_FEATURES = 16
 
 
@@ -170,10 +170,10 @@ def __extract_universal_features(offer_id: str, offer_list: List[Offer]):
 
     # if new features are added, update NUM_OF_UNIVERSAL_FEATURES variable!
     features = [ranks[0],  # price_rank
-                ranks[1],  # quality_rank
-                ranks[2],  # shipping_time_rank
+                # ranks[1],  # quality_rank
+                # ranks[2],  # shipping_time_rank
                 len(offer_list),  # amount_offers
-                1 if current_offer.prime == 'True' else 0,  # prime
+                # 1 if current_offer.prime == 'True' else 0,  # prime
                 price_differences[1],  # price_diff_to_min_in_%
                 price_differences[3],  # price_diff_to_2nd_min_in_%
                 price_differences[5],  # price_diff_to_3rd_min_in_%

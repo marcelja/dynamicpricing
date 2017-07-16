@@ -53,9 +53,8 @@ class LogisticRegressionMerchant(MLMerchant):
         for product_id, vector_tuple in features.items():
             f_vector.extend(vector_tuple[0])
             s_vector.extend(vector_tuple[1])
-        f, s = shuffle(f_vector, s_vector)
 
-        model = sm.Logit(s, f)
+        model = sm.Logit(s_vector, f_vector)
         self.universal_model_stat = model.fit(disp=False)
         print(self.universal_model_stat.summary())
         logging.debug('Finished training universal model')
