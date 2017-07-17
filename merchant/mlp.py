@@ -31,14 +31,13 @@ class MLPMerchant(MLMerchant):
         return self.product_model_dict
 
     def train_model_for_id(self, product_id, data):
-        product_model = MLPRegressor(hidden_layer_sizes=(40,),
+        product_model = MLPRegressor(hidden_layer_sizes=(80,),
                                      activation='relu',
                                      solver='adam',
                                      learning_rate='adaptive',
-                                     max_iter=100,
-                                     learning_rate_init=0.001,
-                                     verbose=True,
-                                     alpha=0.001)
+                                     max_iter=500,
+                                     learning_rate_init=0.01,
+                                     alpha=0.01)
         product_model.fit(data[0], data[1])
         # print(product_model.coef_)
         self.product_model_dict[product_id] = product_model
@@ -49,10 +48,9 @@ class MLPMerchant(MLMerchant):
                                             activation='relu',
                                             solver='adam',
                                             learning_rate='adaptive',
-                                            max_iter=100,
-                                            learning_rate_init=0.001,
-                                            verbose=True,
-                                            alpha=0.001)
+                                            max_iter=500,
+                                            learning_rate_init=0.01,
+                                            alpha=0.01)
         start_time = int(time() * 1000)
         f_vector = []
         s_vector = []
