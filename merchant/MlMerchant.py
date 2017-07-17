@@ -93,11 +93,11 @@ class MLMerchant(ABC, SuperMerchant):
         self.training_data.append_by_kafka()
         save_training_data(self.training_data, self.settings["data_file"])
         product_models = self.train_model(self.training_data.convert_training_data())
-        universal_model: LogisticRegression = self.train_universal_model(self.training_data.convert_training_data(True))
+        universal_model = self.train_universal_model(self.training_data.convert_training_data(True))
         lock = Lock()
         lock.acquire()
         self.model = product_models
-        self.universal_model: LogisticRegression = universal_model
+        self.universal_model = universal_model
         lock.release()
         self.calc_performance(self.training_data)
         self.last_learning = datetime.datetime.now()
