@@ -95,39 +95,22 @@ class TrainingData:
         return [x[1] for x in sales].count(offer_id)
 
     def print_info(self):
-        timestamps_ms = set()
         counter_ms = 0
-        for product in self.market_situations.values():
-            for timestamp, merchant in product.items():
-                timestamps_ms.add(timestamp)
-                for offer in merchant.values():
-                    counter_ms += len(offer.keys())
-        timestamps_s = set()
         counter_s = 0
-        counter_s_same_timestamp = 0
-        for product in self.sales.values():
-            for timestamp, offers in product.items():
-                timestamps_s.add(timestamp)
-                counter_s += len(offers.keys())
-                for o in offers.values():
-                    if o > 1:
-                        counter_s_same_timestamp += 1
-        timestamps_ms = sorted(timestamps_ms)
-        timestamps_s = sorted(timestamps_s)
+
+        for product in self.joined_data.values():
+            for situation in product.values():
+                counter_s += len(situation.sales)
+                for merchant in situation.merchants.values():
+                    counter_ms += len(merchant)
 
         print('\nTraining data: \n\tEntries market_situations: {} \
                \n\tEntries sales: {} \
-               \n\nmarket_situations: \
                \n\tDistinct timestamps: {} \
                \n\tFirst timestamp: {} \
-               \n\tLast timestamp: {} \
-               \n\nsales: \
-               \n\tFirst timestamp: {} \
-               \n\tLast timestamp: {} \
-               \n\tMultiple sale events in one interval: {} \n\
-               '.format(counter_ms, counter_s, len(timestamps_ms),
-                        timestamps_ms[0], timestamps_ms[-1], timestamps_s[0],
-                        timestamps_s[-1], counter_s_same_timestamp))
+               \n\tLast timestamp: {} \n\
+               '.format(counter_ms, counter_s,
+                        len(self.timestamps), self.timestamps[0], self.timestamps[-1]))
 
     def append_marketplace_situations(self, line, csv_merchant_id=None):
         merchant_id = line['merchant_id']
@@ -211,6 +194,7 @@ class TrainingData:
             buy_offer_data = csv.DictReader(csvfile)
             for line in buy_offer_data:
                 self.append_sales(line)
+        self.print_info()
 
     def append_by_kafka(self, market_situations_path=None, buy_offer_path=None):
         ########## use kafka example files
@@ -236,3 +220,4 @@ class TrainingData:
         buy_offer_data = csv.DictReader(bo.text.split('\n'))
         for line in buy_offer_data:
             self.append_sales(line)
+        self.print_info()
