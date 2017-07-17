@@ -36,9 +36,11 @@ class RandomForestMerchant(MLMerchant):
         # print(product_model.coef_)
         self.product_model_dict[product_id] = product_model
 
-    def predict(self, product_id, situations):
-        # TODO: What happens if there is no such product_id ?
-        return self.model[product_id].predict(situations)
+    def predict(self, product_id: str, situations: List):
+        predicted = self.model[product_id].predict(situations)
+        for idx, predict in enumerate(predicted):
+            predicted[idx] = max(predicted[idx], 0.000001)
+        return predicted
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')

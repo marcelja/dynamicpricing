@@ -51,7 +51,6 @@ class LogisticRegressionMerchant(MLMerchant):
         return universal_model
 
     def predict(self, product_id: str, situations: List[List[int]]):
-        # TODO: What happens if there is no such product_id ?
         return self.model[product_id].predict_proba(situations)[:, 1]
 
     def predict_with_universal_model(self, situations: List[List[int]]):
