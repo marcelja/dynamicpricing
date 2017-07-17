@@ -2,6 +2,7 @@ import argparse
 import logging
 from time import time
 from typing import List
+from concurrent.futures import ThreadPoolExecutor, wait, as_completed
 
 import statsmodels.api as sm
 from sklearn.linear_model import LogisticRegression
@@ -15,23 +16,28 @@ from settings import Settings
 
 class LogisticRegressionMerchant(MLMerchant):
     def __init__(self):
-        self.universal_model_stat: Logit = None
+        self.product_model_dict = dict()
+        self.universal_model = None
+        self.universal_model_stat = None
         super().__init__(Settings.create('log_reg_models.pkl'))
 
     def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist
-        product_model_dict = dict()
-        logging.debug('Start training')
         start_time = int(time() * 1000)
-        for product_id, vector_tuple in features.items():
-            product_model = LogisticRegression()
-            f, s = shuffle(vector_tuple[0], vector_tuple[1])
-            product_model.fit(f, s)
-            product_model_dict[product_id] = product_model
+        logging.debug('Start training')
+        product_ids = features.keys()
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            thread_list = [executor.submit(self.train_model_for_id, product_id, features[product_id]) for product_id in product_ids]
+            wait(thread_list)
         end_time = int(time() * 1000)
         logging.debug('Finished training')
         logging.debug('Training took {} ms'.format(end_time - start_time))
-        return product_model_dict
+        return self.product_model_dict
+
+    def train_model_for_id(self, product_id, data):
+        product_model = LogisticRegression()
+        product_model.fit(data[0], data[1])
+        self.product_model_dict[product_id] = product_model
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')

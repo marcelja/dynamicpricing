@@ -22,12 +22,12 @@ class MLPMerchant(MLMerchant):
         for product_id, vector_tuple in features.items():
             # More configuration needed here
             product_model = MLPRegressor(hidden_layer_sizes=(10,),
-                                         activation='logistic',
+                                         activation='relu',
                                          # def
                                          solver='adam',
-                                         learning_rate='adaptive',
-                                         max_iter=10000,
-                                         learning_rate_init=0.01,
+                                         # learning_rate='adaptive',
+                                         max_iter=1000,
+                                         # learning_rate_init=0.01,
                                          verbose=True)
             # TODO: what does partial_fit() do?
             product_model.fit(vector_tuple[0], vector_tuple[1])

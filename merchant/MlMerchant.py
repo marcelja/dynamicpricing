@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from threading import Thread, Lock
 from typing import List
 
-import numpy as np
+from numpy import arange
 from sklearn.linear_model import LogisticRegression
 
 from SuperMerchant import SuperMerchant
@@ -176,12 +176,15 @@ class MLMerchant(ABC, SuperMerchant):
     def update_existing_offers(self, offers: List[Offer], own_offers: List[Offer], product_prices_by_uid: dict, request_count: int):
         for own_offer in own_offers:
             if own_offer.amount > 0:
+                # only update an existing offer, when new price is different from existing one
+                old_price = own_offer.price
                 own_offer.price = self.calculate_optimal_price(product_prices_by_uid, own_offer, current_offers=offers)
-                try:
-                    self.marketplace_api.update_offer(own_offer)
-                    request_count += 1
-                except Exception as e:
-                    logging.warning('Could not update offer on marketplace: {}'.format(e))
+                if float(own_offer.price) != float(old_price):
+                    try:
+                        self.marketplace_api.update_offer(own_offer)
+                        request_count += 1
+                    except Exception as e:
+                        logging.warning('Could not update offer on marketplace: {}'.format(e))
         return request_count
 
     def buy_new_products(self, missing_offers: int):
@@ -218,7 +221,7 @@ class MLMerchant(ABC, SuperMerchant):
         """
 
         price = product_prices_by_uid[offer.uid]
-        if random.uniform(0, 1) < 0.05:
+        if random.uniform(0, 1) < 0.01:
             print('r', end='')
             sys.stdout.flush()
             return self.random_price(price)
@@ -227,7 +230,7 @@ class MLMerchant(ABC, SuperMerchant):
 
     def ml_highest_profit(self, current_offers: List[Offer], offer: Offer, price: float):
         try:
-            potential_prices = list(range(1, 100, 1))
+            potential_prices = list(arange(price * 0.9, price * 3, 0.5))
 
             if str(offer.product_id) in self.model:
                 lst = self.create_prediction_data(offer, current_offers, potential_prices, price, False)
@@ -250,10 +253,10 @@ class MLMerchant(ABC, SuperMerchant):
             print('R', end='')
             print(e)
             sys.stdout.flush()
-            return price * (random.uniform(1.2, 3))
+            return self.random_price(price)
 
     def random_price(self, price: float):
-        return (random.randint(price * 100, 10000) / 100)
+        return round(price * random.uniform(1.01, 3), 2)
 
     def calculate_expected_profits(self, potential_prices: List[float], price: float, probas: List):
         return [(proba * (potential_prices[i] - price)) for i, proba in enumerate(probas)]
