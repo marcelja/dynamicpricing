@@ -75,7 +75,7 @@ class MLMerchant(ABC, SuperMerchant):
                 if self.merchant_id in jms.merchants:
                     for offer_id in jms.merchants[self.merchant_id].keys():
                         amount_sales = TrainingData.extract_sales(jms.merchants[self.merchant_id][offer_id].product_id, offer_id, jms.sales)
-                        features = extract_features(offer_id, TrainingData.create_offer_list(jms), True)
+                        features = extract_features(offer_id, TrainingData.create_offer_list(jms), True, training_data_predicting.product_prices)
                         if amount_sales == 0:
                             sales.append(0)
                             # sales_probabilities.append(self.predict_with_universal_model([features]))
@@ -92,7 +92,7 @@ class MLMerchant(ABC, SuperMerchant):
         thread.start()
 
     def machine_learning_worker(self):
-        self.training_data = load_history(self.settings["data_file"])
+        self.training_data: TrainingData = load_history(self.settings["data_file"])
         self.training_data.append_by_kafka()
         save_training_data(self.training_data, self.settings["data_file"])
         product_models = self.train_model(self.training_data.convert_training_data())
@@ -100,7 +100,7 @@ class MLMerchant(ABC, SuperMerchant):
         lock = Lock()
         lock.acquire()
         self.model = product_models
-        self.universal_model = universal_model
+        self.universal_model: LogisticRegression = universal_model
         lock.release()
         self.calculate_performance(self.training_data)
         self.last_learning = datetime.datetime.now()
@@ -268,7 +268,7 @@ class MLMerchant(ABC, SuperMerchant):
             potential_price = price + potential_price_candidate
 
             setattr(next(offer for offer in current_offers if offer.offer_id == own_offer.offer_id), "price", potential_price)
-            prediction_data = extract_features(own_offer.offer_id, current_offers, universal_features)
+            prediction_data = extract_features(own_offer.offer_id, current_offers, universal_features, self.training_data.product_prices)
             lst.append(prediction_data)
         return lst
 

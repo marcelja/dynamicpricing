@@ -15,7 +15,7 @@ from merchant_sdk.api import KafkaApi, PricewarsRequester
 from merchant_sdk.models import Offer
 
 NUM_OF_UNIVERSAL_FEATURES = 5
-NUM_OF_PRODUCT_SPECIFIC_FEATURES = 16
+NUM_OF_PRODUCT_SPECIFIC_FEATURES = 17
 
 
 # TODO: adapt to new downloading process
@@ -156,11 +156,11 @@ def precision_recall(sales_probabilities, sales):
     logging.info('Recall is: {}'.format(recall))
 
 
-def extract_features(offer_id: str, offer_list: List[Offer], universal_features):
+def extract_features(offer_id: str, offer_list: List[Offer], universal_features: bool, product_prices: dict):
     if universal_features:
         return __extract_universal_features(offer_id, offer_list)
     else:
-        return __extract_product_specific_features(offer_id, offer_list)
+        return __extract_product_specific_features(offer_id, offer_list, product_prices)
 
 
 def __extract_universal_features(offer_id: str, offer_list: List[Offer]):
@@ -184,9 +184,9 @@ def __extract_universal_features(offer_id: str, offer_list: List[Offer]):
     return features
 
 
-def __extract_product_specific_features(offer_id: str, offer_list: List[Offer]):
-    current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
-    other_offers = [x for x in offer_list if offer_id != x.offer_id]
+def __extract_product_specific_features(offer_id: str, offer_list: List[Offer], product_prices: dict):
+    current_offer: Offer = [x for x in offer_list if offer_id == x.offer_id][0]
+    other_offers: List = [x for x in offer_list if offer_id != x.offer_id]
 
     ranks = calculate_ranks(current_offer, other_offers)
     price_differences = calculate_price_differences(float(current_offer.price),
@@ -208,6 +208,7 @@ def __extract_product_specific_features(offer_id: str, offer_list: List[Offer]):
                 int(current_offer.shipping_time['standard']),  # shipping_time
                 calculate_average_price(other_offers),  # avg_price
                 calculate_average_price(offer_list),  # avg_price_with_current_offer
+                calculate_average_price_from_price_list(product_prices.get(current_offer.product_id)),  # average sale prices
                 price_differences[0],  # price_diff_to_min
                 price_differences[2],  # price_diff_to_2nd_min
                 price_differences[4]  # price_diff_to_3rd_min
@@ -256,6 +257,10 @@ def calculate_price_difference(price1, price2, max_price):
 
 def calculate_average_price(offers):
     price_list = [float(x.price) for x in offers]
+    return calculate_average_price_from_price_list(price_list)
+
+
+def calculate_average_price_from_price_list(price_list: List):
     if len(price_list) != 0:
         return sum(price_list) / len(price_list)
     else:
