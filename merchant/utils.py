@@ -261,7 +261,7 @@ def calculate_average_price(offers):
 
 
 def calculate_average_price_from_price_list(price_list: List):
-    if len(price_list) != 0:
+    if price_list and len(price_list) != 0:
         return sum(price_list) / len(price_list)
     else:
         return 0
