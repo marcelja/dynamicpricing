@@ -14,9 +14,10 @@ from sklearn.linear_model import LogisticRegression
 from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
-from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_UNIVERSAL_FEATURES
+from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_UNIVERSAL_FEATURES, NUM_OF_PRODUCT_SPECIFIC_FEATURES
 
-CALCULATE_PERFORMANCE = True
+CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE = True
+CALCULATE_UNIVERSAL_PERFORMANCE = True
 
 
 class MLMerchant(ABC, SuperMerchant):
@@ -42,26 +43,46 @@ class MLMerchant(ABC, SuperMerchant):
         self.last_learning = datetime.datetime.now()
 
     def calc_performance(self, training_data: TrainingData):
-        if not CALCULATE_PERFORMANCE:
+        if not CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE and not CALCULATE_UNIVERSAL_PERFORMANCE:
             return
-        sales_probabilities = []
-        sales = []
+        sales_probabilities_ps = []
+        sales_ps = []
+        sales_probabilities_uni = []
+        sales_uni = []
         for joined_market_situations in training_data.joined_data.values():
             for jms in joined_market_situations.values():
                 if self.merchant_id in jms.merchants:
                     for offer_id in jms.merchants[self.merchant_id].keys():
                         amount_sales = TrainingData.extract_sales(jms.merchants[self.merchant_id][offer_id].product_id, offer_id, jms.sales)
-                        features = extract_features(offer_id, TrainingData.create_offer_list(jms), True, training_data.product_prices)
+                        if CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE:
+                            features_ps = extract_features(offer_id, TrainingData.create_offer_list(jms), False, training_data.product_prices)
+                        if CALCULATE_UNIVERSAL_PERFORMANCE:
+                            features_uni = extract_features(offer_id, TrainingData.create_offer_list(jms), True, training_data.product_prices)
                         if amount_sales == 0:
-                            sales.append(0)
-                            # sales_probabilities.append(self.predict_with_universal_model([features]))
-                            sales_probabilities.append(self.predict_with_universal_model([features]))
+                            self.add_product_specific_probabilities(features_ps, jms, offer_id, sales_probabilities_ps, sales_ps, 0)
+                            self.add_universal_probabilities(features_uni, sales_probabilities_uni, sales_uni, 0)
                         else:
                             for i in range(amount_sales):
-                                sales.append(1)
-                                # sales_probabilities.append(self.predict_with_universal_model([features]))
-                                sales_probabilities.append(self.predict_with_universal_model([features]))
-        calculate_performance(sales_probabilities, sales, NUM_OF_UNIVERSAL_FEATURES)
+                                self.add_product_specific_probabilities(features_ps, jms, offer_id, sales_probabilities_ps, sales_ps, 1)
+                                self.add_universal_probabilities(features_uni, sales_probabilities_uni, sales_uni, 1)
+        if CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE:
+            self.process_performance_calculation(sales_probabilities_ps, sales_ps, NUM_OF_PRODUCT_SPECIFIC_FEATURES, "Product-specific")
+        if CALCULATE_UNIVERSAL_PERFORMANCE:
+            self.process_performance_calculation(sales_probabilities_uni, sales_uni, NUM_OF_UNIVERSAL_FEATURES, "Universal")
+
+    def process_performance_calculation(self, sales_probabilities: List, sales: List, num_of_features: int, model_name: str):
+        logging.info(model_name + " performance:")
+        calculate_performance(sales_probabilities, sales, num_of_features)
+
+    def add_universal_probabilities(self, features_uni, sales_probabilities_uni, sales_uni, sale_success: int):
+        if CALCULATE_UNIVERSAL_PERFORMANCE:
+            sales_uni.append(sale_success)
+            sales_probabilities_uni.append(self.predict_with_universal_model([features_uni]))
+
+    def add_product_specific_probabilities(self, features_ps, jms, offer_id, sales_probabilities_ps, sales_ps, sale_success: int):
+        if CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE:
+            sales_ps.append(sale_success)
+            sales_probabilities_ps.append(self.predict(jms.merchants[self.merchant_id][offer_id].product_id, [features_ps]))
 
     def machine_learning(self):
         thread = Thread(target=self.machine_learning_worker)
