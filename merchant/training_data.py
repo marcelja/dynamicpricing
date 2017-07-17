@@ -26,16 +26,18 @@ class TrainingData:
     }
     """
 
-    def __init__(self, merchant_token, merchant_id,
+    def __init__(self, merchant_token: str, merchant_id: str,
                  market_situations_json=None, sales_json=None):
-        self.joined_data = dict()
-        self.merchant_token = merchant_token
-        self.merchant_id = merchant_id
-        self.timestamps = []
-        self.last_sale_timestamp = None
+        self.joined_data: dict = dict()
+        self.merchant_token: str = merchant_token
+        self.merchant_id: str = merchant_id
+        self.timestamps: List = []
+        self.last_sale_timestamp: str = None
 
-        self.total_sale_events = 0
-        self.sales_wo_ms = 0
+        self.total_sale_events: int = 0
+        self.sales_wo_ms: int = 0
+
+        self.product_prices: dict = dict()  # store all prices from sales
 
     def update_timestamps(self):
         timestamps = set()
@@ -61,7 +63,7 @@ class TrainingData:
         if self.merchant_id in joined_market_situation.merchants:
             for offer_id in joined_market_situation.merchants[self.merchant_id].keys():
                 amount_sales = self.extract_sales(product_id, offer_id, joined_market_situation.sales)
-                features = extract_features(offer_id, offer_list, universal_features)
+                features = extract_features(offer_id, offer_list, universal_features, self.product_prices)
                 if amount_sales == 0:
                     sales_vector.append(0)
                     features_vector.append(features)
@@ -168,9 +170,17 @@ class TrainingData:
 
             interval = self.joined_data[line['product_id']][timestamp]
             interval.sales.append((line['timestamp'], line['offer_id']))
+
+            # add price to price list
+            self.add_product_price(line['product_id'], line['price'])
         else:
             self.sales_wo_ms += 1
             logging.warning("Did not find a corresponding market situation for sale event! Ignore...   (" + str(self.sales_wo_ms) + "/" + str(self.total_sale_events) + ")")
+
+    def add_product_price(self, product_id: str, price: str):
+        if product_id not in self.product_prices:
+            self.product_prices[product_id] = []
+        self.product_prices[product_id].append(float(price))
 
     def find_index_of_corresponding_market_situation(self, index: int, product_id: str, offer_id: str):
         if self.test_index(index, product_id, offer_id):
