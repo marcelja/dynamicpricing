@@ -257,17 +257,9 @@ class MLMerchant(ABC, SuperMerchant):
         pass
 
     @abstractmethod
-    def train_universal_statsmodel(self, features: dict):
-        pass
-
-    @abstractmethod
     def predict(self, product_id: str, situations: List[List[int]]):
         pass
 
     @abstractmethod
     def predict_with_universal_model(self, situations: List[List[int]]):
-        pass
-
-    @abstractmethod
-    def predict_with_universal_statsmodel(self, situations: List[List[int]]):
         pass

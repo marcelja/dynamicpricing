@@ -1,14 +1,14 @@
 import argparse
 import logging
-from typing import List
 from concurrent.futures import ThreadPoolExecutor, wait
+from time import time
+from typing import List
 
 from sklearn.ensemble import RandomForestRegressor
 
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
 from settings import Settings
-from time import time
 
 
 class RandomForestMerchant(MLMerchant):
@@ -52,14 +52,9 @@ class RandomForestMerchant(MLMerchant):
         logging.debug('Finished training universal model')
         return universal_model
 
-    def train_universal_statsmodel(self, features: dict):
-        pass
-
     def predict_with_universal_model(self, situations: List[List[int]]):
         return self.universal_model.predict(situations)
 
-    def predict_with_universal_statsmodel(self, situations: List[List[int]]):
-        return self.universal_model.predict(situations)
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)

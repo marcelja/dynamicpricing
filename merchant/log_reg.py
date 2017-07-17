@@ -1,13 +1,11 @@
 import argparse
 import logging
+from concurrent.futures import ThreadPoolExecutor, wait
 from time import time
 from typing import List
-from concurrent.futures import ThreadPoolExecutor, wait
 
-import statsmodels.api as sm
 from sklearn.linear_model import LogisticRegression
 from sklearn.utils import shuffle
-from statsmodels.discrete.discrete_model import Logit
 
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
@@ -18,7 +16,6 @@ class LogisticRegressionMerchant(MLMerchant):
     def __init__(self):
         self.product_model_dict = dict()
         self.universal_model = None
-        self.universal_model_stat = None
         super().__init__(Settings.create('log_reg_models.pkl'))
 
     def train_model(self, features: dict):
@@ -53,28 +50,12 @@ class LogisticRegressionMerchant(MLMerchant):
         logging.debug('Finished training universal model')
         return universal_model
 
-    def train_universal_statsmodel(self, features: dict):
-        logging.debug('Start training universal model')
-        f_vector = []
-        s_vector = []
-        for product_id, vector_tuple in features.items():
-            f_vector.extend(vector_tuple[0])
-            s_vector.extend(vector_tuple[1])
-
-        model = sm.Logit(s_vector, f_vector)
-        self.universal_model_stat = model.fit(disp=False)
-        print(self.universal_model_stat.summary())
-        logging.debug('Finished training universal model')
-
     def predict(self, product_id: str, situations: List[List[int]]):
         # TODO: What happens if there is no such product_id ?
         return self.model[product_id].predict_proba(situations)[:, 1]
 
     def predict_with_universal_model(self, situations: List[List[int]]):
         return self.universal_model.predict_proba(situations)[:, 1]
-
-    def predict_with_universal_statsmodel(self, situations: List[List[int]]):
-        return self.universal_model_stat.predict(situations)
 
 
 if __name__ == "__main__":

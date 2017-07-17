@@ -1,5 +1,6 @@
 import argparse
 import logging
+from time import time
 from typing import List
 
 from sklearn.neural_network import MLPRegressor
@@ -7,7 +8,6 @@ from sklearn.neural_network import MLPRegressor
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
 from settings import Settings
-from time import time
 
 
 class MLPMerchant(MLMerchant):
@@ -58,10 +58,6 @@ class MLPMerchant(MLMerchant):
         logging.debug('Finished training universal model')
         logging.debug('Training took {} ms'.format(end_time - start_time))
 
-    def train_universal_statsmodel(self, features: dict):
-        # WTF??
-        pass
-
     def predict(self, product_id, situations):
         # TODO2: It's possible, that predict return negative possibility,
         #        that's actually not possible
@@ -70,8 +66,6 @@ class MLPMerchant(MLMerchant):
     def predict_with_universal_model(self, situations: List[List[int]]):
         return self.universal_model.predict(situations)
 
-    def predict_with_universal_statsmodel(self, situations: List[List[int]]):
-        return self.universal_model.predict(situations)
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
