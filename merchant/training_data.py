@@ -34,6 +34,9 @@ class TrainingData:
         self.timestamps = []
         self.last_sale_timestamp = None
 
+        self.total_sale_events = 0
+        self.sales_wo_ms = 0
+
     def update_timestamps(self):
         timestamps = set()
         for product in self.joined_data.values():
@@ -139,7 +142,7 @@ class TrainingData:
                                                {'standard': line['shipping_time_standard'], 'prime': line['shipping_time_prime']},
                                                '', line['uid'])
 
-    def prepare_joined_data(self, product_id, timestamp, merchant_id=None):
+    def prepare_joined_data(self, product_id: str, timestamp: str, merchant_id=None):
         if product_id not in self.joined_data:
             self.joined_data[product_id] = dict()
         if timestamp not in self.joined_data[product_id]:
@@ -147,19 +150,46 @@ class TrainingData:
         if merchant_id is not None and merchant_id not in self.joined_data[product_id][timestamp].merchants:
             self.joined_data[product_id][timestamp].merchants[merchant_id] = dict()
 
-    def append_sales(self, line):
+    def append_sales(self, line: dict):
         if self.last_sale_timestamp and line['timestamp'] <= self.last_sale_timestamp:
             return
         index = bisect.bisect(self.timestamps, line['timestamp']) - 1
         if index < 0:
             return
-        timestamp = self.timestamps[index]
-        self.last_sale_timestamp = line['timestamp']
 
-        self.prepare_joined_data(line['product_id'], timestamp)
+        index = self.find_index_of_corresponding_market_situation(index, line['product_id'], line['offer_id'])
 
-        interval = self.joined_data[line['product_id']][timestamp]
-        interval.sales.append((line['timestamp'], line['offer_id']))
+        self.total_sale_events += 1
+        if index != -1:
+            timestamp = self.timestamps[index]
+            self.last_sale_timestamp = line['timestamp']
+
+            self.prepare_joined_data(line['product_id'], timestamp)
+
+            interval = self.joined_data[line['product_id']][timestamp]
+            interval.sales.append((line['timestamp'], line['offer_id']))
+        else:
+            self.sales_wo_ms += 1
+            logging.warning("Did not find a corresponding market situation for sale event! Ignore...   (" + str(self.sales_wo_ms) + "/" + str(self.total_sale_events) + ")")
+
+    def find_index_of_corresponding_market_situation(self, index: int, product_id: str, offer_id: str):
+        if self.test_index(index, product_id, offer_id):
+            return index
+        for i in range(1, 11):
+            if index - 1 >= 0 and self.test_index(index - 1, product_id, offer_id):
+                return index - i
+            if index + i < len(self.timestamps) and self.test_index(index + 1, product_id, offer_id):
+                return index + i
+        return -1
+
+    def test_index(self, index: int, product_id: str, offer_id: str):
+        if product_id in self.joined_data \
+                and self.timestamps[index] in self.joined_data[product_id] \
+                and self.merchant_id in self.joined_data[product_id][self.timestamps[index]].merchants \
+                and offer_id in self.joined_data[product_id][self.timestamps[index]].merchants[self.merchant_id]:
+            return True
+        else:
+            return False
 
     def append_by_csvs(self, market_situations_path, buy_offer_path, csv_merchant_id=None):
         with open(market_situations_path, 'r') as csvfile:
