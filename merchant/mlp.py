@@ -64,7 +64,10 @@ class MLPMerchant(MLMerchant):
         return self.universal_model
 
     def predict(self, product_id, situations):
-        return self.model[product_id].predict(situations)
+        predicted = self.universal_model.predict(situations)
+        for idx, predict in enumerate(predicted):
+            predicted[idx] = max(predicted[idx], 0.000001)
+        return predicted
 
     def predict_with_universal_model(self, situations: List[List[int]]):
         predicted = self.universal_model.predict(situations)

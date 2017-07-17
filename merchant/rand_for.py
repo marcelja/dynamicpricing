@@ -63,6 +63,8 @@ class RandomForestMerchant(MLMerchant):
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("requests").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(
         description='PriceWars Merchant doing Random Forest Regression')
     parser.add_argument('--port',
