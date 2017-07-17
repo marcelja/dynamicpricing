@@ -30,15 +30,15 @@ class RandomForestMerchant(MLMerchant):
         logging.debug('Training took {} ms'.format(end_time - start_time))
         return self.product_model_dict
 
-    def predict(self, product_id, situations):
-        # TODO: What happens if there is no such product_id ?
-        return self.model[product_id].predict(situations)
-
     def train_model_for_id(self, product_id, data):
         product_model = RandomForestRegressor(n_estimators=100)
         product_model.fit(data[0], data[1])
         # print(product_model.coef_)
         self.product_model_dict[product_id] = product_model
+
+    def predict(self, product_id, situations):
+        # TODO: What happens if there is no such product_id ?
+        return self.model[product_id].predict(situations)
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')
@@ -53,7 +53,10 @@ class RandomForestMerchant(MLMerchant):
         return universal_model
 
     def predict_with_universal_model(self, situations: List[List[int]]):
-        return self.universal_model.predict(situations)
+        predicted = self.universal_model.predict(situations)
+        for idx, predict in enumerate(predicted):
+            predicted[idx] = max(predicted[idx], 0.000001)
+        return predicted
 
 
 if __name__ == "__main__":

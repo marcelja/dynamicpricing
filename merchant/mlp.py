@@ -2,6 +2,7 @@ import argparse
 import logging
 from time import time
 from typing import List
+from concurrent.futures import ThreadPoolExecutor, wait
 
 from sklearn.neural_network import MLPRegressor
 
@@ -12,41 +13,46 @@ from settings import Settings
 
 class MLPMerchant(MLMerchant):
     def __init__(self):
+        self.product_model_dict = dict()
         self.universal_model = None
         super().__init__(Settings.create('mlp_models.pkl'))
 
     def train_model(self, features: dict):
-        product_model_dict = dict()
+        # TODO include time and amount of sold items to featurelist
         logging.debug('Start training')
+        product_ids = features.keys()
         start_time = int(time() * 1000)
-        for product_id, vector_tuple in features.items():
-            # More configuration needed here
-            product_model = MLPRegressor(hidden_layer_sizes=(10,),
-                                         activation='relu',
-                                         # def
-                                         solver='adam',
-                                         # learning_rate='adaptive',
-                                         max_iter=1000,
-                                         # learning_rate_init=0.01,
-                                         verbose=True)
-            # TODO: what does partial_fit() do?
-            product_model.fit(vector_tuple[0], vector_tuple[1])
-            product_model_dict[product_id] = product_model
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            thread_list = [executor.submit(self.train_model_for_id, product_id, features[product_id]) for product_id in product_ids]
+            wait(thread_list)
         end_time = int(time() * 1000)
         logging.debug('Finished training')
         logging.debug('Training took {} ms'.format(end_time - start_time))
-        return product_model_dict
+        return self.product_model_dict
+
+    def train_model_for_id(self, product_id, data):
+        product_model = MLPRegressor(hidden_layer_sizes=(40,),
+                                     activation='relu',
+                                     solver='adam',
+                                     learning_rate='adaptive',
+                                     max_iter=100,
+                                     learning_rate_init=0.001,
+                                     verbose=True,
+                                     alpha=0.001)
+        product_model.fit(data[0], data[1])
+        # print(product_model.coef_)
+        self.product_model_dict[product_id] = product_model
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')
-        self.universal_model = MLPRegressor(hidden_layer_sizes=(10,),
-                                            activation='logistic',
-                                            # def
+        self.universal_model = MLPRegressor(hidden_layer_sizes=(80,),
+                                            activation='relu',
                                             solver='adam',
                                             learning_rate='adaptive',
-                                            max_iter=10000,
-                                            learning_rate_init=0.01,
-                                            verbose=True)
+                                            max_iter=100,
+                                            learning_rate_init=0.001,
+                                            verbose=True,
+                                            alpha=0.001)
         start_time = int(time() * 1000)
         f_vector = []
         s_vector = []
@@ -57,15 +63,16 @@ class MLPMerchant(MLMerchant):
         end_time = int(time() * 1000)
         logging.debug('Finished training universal model')
         logging.debug('Training took {} ms'.format(end_time - start_time))
+        return self.universal_model
 
     def predict(self, product_id, situations):
-        # TODO2: It's possible, that predict return negative possibility,
-        #        that's actually not possible
         return self.model[product_id].predict(situations)
 
     def predict_with_universal_model(self, situations: List[List[int]]):
-        return self.universal_model.predict(situations)
-
+        predicted = self.universal_model.predict(situations)
+        for idx, predict in enumerate(predicted):
+            predicted[idx] = max(predicted[idx], 0.000001)
+        return predicted
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
