@@ -7,6 +7,7 @@ from kafka_downloader import download_kafka_files
 from merchant_sdk.models import Offer
 from models.joined_market_situation import JoinedMarketSituation
 from utils import extract_features
+from timestamp_converter import TimestampConverter
 
 
 class TrainingData:
@@ -48,29 +49,39 @@ class TrainingData:
         self.timestamps = sorted(timestamps)
 
     def create_training_data(self, product_id, universal_features, interval_length=5):
-        # self.update_timestamps()
         product = self.joined_data[product_id]
         sales_vector = []
         features_vector = []
 
         for timestamp, joined_market_situation in product.items():
             offer_list = self.create_offer_list(joined_market_situation)
-            self.append_to_vectors_from_features(features_vector, sales_vector, joined_market_situation, offer_list, product_id, universal_features)
+            self.append_to_vectors_from_features(features_vector, sales_vector, joined_market_situation, offer_list, product_id, universal_features, timestamp)
 
         return features_vector, sales_vector
 
-    def append_to_vectors_from_features(self, features_vector, sales_vector, joined_market_situation: JoinedMarketSituation, offer_list, product_id, universal_features):
+    def append_to_vectors_from_features(self, features_vector, sales_vector, joined_market_situation: JoinedMarketSituation, offer_list, product_id, universal_features, timestamp):
         if self.merchant_id in joined_market_situation.merchants:
             for offer_id in joined_market_situation.merchants[self.merchant_id].keys():
                 amount_sales = self.extract_sales(product_id, offer_id, joined_market_situation.sales)
                 features = extract_features(offer_id, offer_list, universal_features, self.product_prices)
                 if amount_sales == 0:
-                    sales_vector.append(0)
-                    features_vector.append(features)
+                    self.append_n_times(features_vector, sales_vector, features, 0, timestamp)
                 else:
                     for i in range(amount_sales):
-                        sales_vector.append(1)
-                        features_vector.append(features)
+                        self.append_n_times(features_vector, sales_vector, features, 1, timestamp)
+
+    def append_n_times(self, features_vector, sales_vector, features, sale_event: int, timestamp):
+        latest_timestamp = TimestampConverter.from_string(self.timestamps[-1])
+        current_timestamp = TimestampConverter.from_string(timestamp)
+        minutes_diff = (latest_timestamp - current_timestamp).total_seconds() / 60
+        n = 1
+        if minutes_diff < 10:
+            n = 3
+        elif minutes_diff < 60:
+            n = 2
+        for _ in range(n):
+            sales_vector.append(sale_event)
+            features_vector.append(features)
 
     @staticmethod
     def create_offer_list(joined_market_situation: JoinedMarketSituation):
