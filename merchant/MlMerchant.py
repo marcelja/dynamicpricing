@@ -38,10 +38,10 @@ class MLMerchant(ABC, SuperMerchant):
         save_training_data(self.training_data, self.settings["data_file"])
         self.model = self.train_model(self.training_data.convert_training_data())
         self.universal_model = self.train_universal_model(self.training_data.convert_training_data(True))
-        self.calculate_performance(self.training_data)
+        self.calc_performance(self.training_data)
         self.last_learning = datetime.datetime.now()
 
-    def calculate_performance(self, training_data: TrainingData):
+    def calc_performance(self, training_data: TrainingData):
         if not CALCULATE_PERFORMANCE:
             return
         sales_probabilities = []
@@ -78,7 +78,7 @@ class MLMerchant(ABC, SuperMerchant):
         self.model = product_models
         self.universal_model: LogisticRegression = universal_model
         lock.release()
-        self.calculate_performance(self.training_data)
+        self.calc_performance(self.training_data)
         self.last_learning = datetime.datetime.now()
 
     def execute_logic(self):
