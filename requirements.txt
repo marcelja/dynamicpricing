@@ -1,0 +1,9 @@
+Flask_Cors
+numpy
+Flask
+statsmodels
+pandas
+scipy
+typing
+requests
+scikit_learn
