@@ -2,7 +2,7 @@ import argparse
 import logging
 from time import time
 from typing import List
-from concurrent.futures import ThreadPoolExecutor, wait, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait
 
 import statsmodels.api as sm
 from sklearn.linear_model import LogisticRegression
@@ -37,6 +37,7 @@ class LogisticRegressionMerchant(MLMerchant):
     def train_model_for_id(self, product_id, data):
         product_model = LogisticRegression()
         product_model.fit(data[0], data[1])
+        # print(product_model.coef_)
         self.product_model_dict[product_id] = product_model
 
     def train_universal_model(self, features: dict):

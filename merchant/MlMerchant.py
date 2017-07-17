@@ -35,11 +35,6 @@ class MLMerchant(ABC, SuperMerchant):
         self.training_data = TrainingData(self.merchant_token, self.merchant_id)
         self.training_data.append_by_csvs('../data/marketSituation.csv', '../data/buyOffer.csv',
                                           self.settings["initial_merchant_id"])
-        # self.training_data.append_by_csvs('../data/ms1.csv', '../data/bo1.csv',
-        #                                   self.settings["initial_merchant_id"])
-        # self.training_data.append_by_csvs('../data/ms2.csv', '../data/bo2.csv',
-        #                                   self.settings["initial_merchant_id"])
-
         save_training_data(self.training_data, self.settings["data_file"])
         self.model = self.train_model(self.training_data.convert_training_data())
         self.universal_model = self.train_universal_model(self.training_data.convert_training_data(True))
@@ -49,33 +44,14 @@ class MLMerchant(ABC, SuperMerchant):
     def calculate_performance(self, training_data: TrainingData):
         if not CALCULATE_PERFORMANCE:
             return
-        # training_data_learning = TrainingData(self.merchant_token, self.merchant_id)
-        # training_data_predicting = TrainingData(self.merchant_token, self.merchant_id)
-        # for product_id, joined_market_situations in training_data.joined_data.items():
-        #     timestamps = list(joined_market_situations.keys())
-        #     timestamps_learning = timestamps[:int((len(timestamps) / 3) * 2)]
-        #     training_data_learning.joined_data[product_id] = dict()
-        #     for timestamp in timestamps_learning:
-        #         training_data_learning.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
-        #     timestamps_predicting = timestamps[int((len(timestamps) / 3) * 2):]
-        #     training_data_predicting.joined_data[product_id] = dict()
-        #     for timestamp in timestamps_predicting:
-        #         training_data_predicting.joined_data[product_id][timestamp] = joined_market_situations[timestamp]
-        # # self.train_universal_model(training_data_learning.convert_training_data())
-        # self.train_universal_model(training_data.convert_training_data(True))
-        self.predict_and_calculate_performance(training_data)
-        # self.predict_and_calculate_performance(training_data_predicting)
-        # self.predict_and_calculate_performance(training_data_learning)
-
-    def predict_and_calculate_performance(self, training_data_predicting: TrainingData):
         sales_probabilities = []
         sales = []
-        for joined_market_situations in training_data_predicting.joined_data.values():
+        for joined_market_situations in training_data.joined_data.values():
             for jms in joined_market_situations.values():
                 if self.merchant_id in jms.merchants:
                     for offer_id in jms.merchants[self.merchant_id].keys():
                         amount_sales = TrainingData.extract_sales(jms.merchants[self.merchant_id][offer_id].product_id, offer_id, jms.sales)
-                        features = extract_features(offer_id, TrainingData.create_offer_list(jms), True, training_data_predicting.product_prices)
+                        features = extract_features(offer_id, TrainingData.create_offer_list(jms), True, training_data.product_prices)
                         if amount_sales == 0:
                             sales.append(0)
                             # sales_probabilities.append(self.predict_with_universal_model([features]))
@@ -249,7 +225,7 @@ class MLMerchant(ABC, SuperMerchant):
 
             return best_price
         except (KeyError, ValueError, AttributeError) as e:
-            # Fallback for new porduct
+            # Fallback for new products
             print('R', end='')
             print(e)
             sys.stdout.flush()
