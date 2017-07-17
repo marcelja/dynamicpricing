@@ -40,6 +40,7 @@ class RandomForestMerchant(MLMerchant):
         predicted = self.model[product_id].predict(situations)
         for idx, predict in enumerate(predicted):
             predicted[idx] = max(predicted[idx], 0.000001)
+            predicted[idx] = min(predicted[idx], 0.999999)
         return predicted
 
     def train_universal_model(self, features: dict):
@@ -58,6 +59,7 @@ class RandomForestMerchant(MLMerchant):
         predicted = self.universal_model.predict(situations)
         for idx, predict in enumerate(predicted):
             predicted[idx] = max(predicted[idx], 0.000001)
+            predicted[idx] = min(predicted[idx], 0.999999)
         return predicted
 
 
