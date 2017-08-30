@@ -14,6 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
+from testing_data import TestingData
 from utils import extract_features, save_training_data, load_history, calculate_performance, NUM_OF_UNIVERSAL_FEATURES, NUM_OF_PRODUCT_SPECIFIC_FEATURES, write_calculations_to_file
 
 CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE = True
@@ -40,7 +41,10 @@ class MLMerchant(ABC, SuperMerchant):
         save_training_data(self.training_data, self.settings["data_file"])
         self.model = self.train_model(self.training_data.convert_training_data())
         self.universal_model = self.train_universal_model(self.training_data.convert_training_data(True))
-        # self.calc_performance(self.settings['testing_set_csv_path'])
+        self.testing_data = TestingData()
+        self.testing_data.append_by_csvs(self.settings['testing_set_csv_path'],
+                                         self.settings['initial_merchant_id'])
+        self.calculate_sales_probality_per_offer(self.testing_data)
         self.calc_performance(self.training_data)
         self.last_learning = datetime.datetime.now()
 
@@ -73,6 +77,17 @@ class MLMerchant(ABC, SuperMerchant):
             self.process_performance_calculation(sales_probabilities_ps, sales_ps, NUM_OF_PRODUCT_SPECIFIC_FEATURES, "Product-specific")
         if CALCULATE_UNIVERSAL_PERFORMANCE:
             self.process_performance_calculation(sales_probabilities_uni, sales_uni, NUM_OF_UNIVERSAL_FEATURES, "Universal")
+
+    def calculate_sales_probality_per_offer(self, testing_data: TestingData):
+        probability_per_offer = []
+
+        for joined_market_situations in testing_data.joined_data.values():
+            for jms in joined_market_situations.values():
+                if self.settings["initial_merchant_id"] in jms.merchants:
+                    for offer_id in jms.merchants[self.settings["initial_merchant_id"]].keys():
+                        features_ps = extract_features(offer_id, TrainingData.create_offer_list(jms), False, testing_data.product_prices)
+                        probability = self.predict(jms.merchants[self.settings["initial_merchant_id"]][offer_id].product_id, [features_ps])
+                        probability_per_offer.append((int(offer_id), probability[0]))
         write_calculations_to_file(probability_per_offer, self.settings['output_file'])
 
     def process_performance_calculation(self, sales_probabilities: List, sales: List, num_of_features: int, model_name: str):
@@ -89,8 +104,6 @@ class MLMerchant(ABC, SuperMerchant):
             sales_ps.append(sale_success)
             probability = self.predict(jms.merchants[self.merchant_id][offer_id].product_id, [features_ps])
             sales_probabilities_ps.append(probability)
-            probability_per_offer.append((int(offer_id), probability[0]))
-
 
     def machine_learning(self):
         thread = Thread(target=self.machine_learning_worker)
