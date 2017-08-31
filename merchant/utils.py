@@ -3,7 +3,7 @@ import hashlib
 import logging
 import math
 import os
-import pickle
+import dill as pickle
 import sys
 import traceback
 from typing import List
