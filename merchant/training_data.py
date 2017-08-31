@@ -6,7 +6,7 @@ from typing import List
 from kafka_downloader import download_kafka_files
 from merchant_sdk.models import Offer
 from models.joined_market_situation import JoinedMarketSituation
-from utils import extract_features
+from utils import extract_features, get_buy_offer_fieldnames, get_market_situation_fieldnames
 from timestamp_converter import TimestampConverter
 
 
@@ -197,12 +197,22 @@ class TrainingData:
 
     def append_by_csvs(self, market_situations_path, buy_offer_path, csv_merchant_id=None):
         with open(market_situations_path, 'r') as csvfile:
-            situation_data = csv.DictReader(csvfile)
+            has_header = csv.Sniffer().has_header(csvfile.read(16384))
+            csvfile.seek(0)
+            if has_header:
+                situation_data = csv.DictReader(csvfile)
+            else:
+                situation_data = csv.DictReader(csvfile, fieldnames=get_market_situation_fieldnames())
             for line in situation_data:
                 self.append_marketplace_situations(line, csv_merchant_id)
         self.update_timestamps()
         with open(buy_offer_path, 'r') as csvfile:
-            buy_offer_data = csv.DictReader(csvfile)
+            has_header = csv.Sniffer().has_header(csvfile.read(16384))
+            csvfile.seek(0)
+            if has_header:
+                buy_offer_data = csv.DictReader(csvfile)
+            else:
+                buy_offer_data = csv.DictReader(csvfile, fieldnames=get_buy_offer_fieldnames())
             for line in buy_offer_data:
                 self.append_sales(line)
         self.print_info()

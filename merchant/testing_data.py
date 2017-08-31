@@ -2,6 +2,7 @@ import csv
 from merchant_sdk.models import Offer
 from models.joined_market_situation import JoinedMarketSituation
 from collections import defaultdict
+from utils import get_market_situation_fieldnames
 
 
 class TestingData(object):
@@ -13,7 +14,12 @@ class TestingData(object):
 
     def append_by_csvs(self, market_situations_path, csv_merchant_id):
         with open(market_situations_path, 'r') as csvfile:
-            situation_data = csv.DictReader(csvfile)
+            has_header = csv.Sniffer().has_header(csvfile.read(16384))
+            csvfile.seek(0)
+            if has_header:
+                situation_data = csv.DictReader(csvfile)
+            else:
+                situation_data = csv.DictReader(csvfile, fieldnames=get_market_situation_fieldnames())
             for line in situation_data:
                 self.append_marketplace_situations(line, csv_merchant_id)
 
