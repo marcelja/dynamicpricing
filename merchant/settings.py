@@ -45,5 +45,5 @@ class Settings:
             settings["initial_merchant_id"] = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
             # TODO: create a csv for cross-validation
             settings["testing_set_csv_path"] = '../data/marketSituation.csv'
-            settings["output_file"] = '../tmp/mlp_out.txt'
+            settings["output_file"] = '../tmp/out.txt'
         return settings

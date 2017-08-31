@@ -13,10 +13,12 @@ from settings import Settings
 
 
 class LogisticRegressionMerchant(MLMerchant):
-    def __init__(self):
+    def __init__(self, initial_learning_parameters=None):
         self.product_model_dict = dict()
         self.universal_model = None
-        super().__init__(Settings.create('log_reg_models.pkl'))
+        settings = Settings.create('log_reg_models.pkl',
+                                   initial_learning_parameters=initial_learning_parameters)
+        super().__init__(settings)
 
     def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist
@@ -27,6 +29,7 @@ class LogisticRegressionMerchant(MLMerchant):
             thread_list = [executor.submit(self.train_model_for_id, product_id, features[product_id]) for product_id in product_ids]
             wait(thread_list)
         end_time = int(time() * 1000)
+        [print(product_model.coef_) for product_model in self.product_model_dict.values()]
         logging.debug('Finished training')
         logging.debug('Training took {} ms'.format(end_time - start_time))
         return self.product_model_dict
@@ -62,12 +65,40 @@ if __name__ == "__main__":
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("requests").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(
-        description='PriceWars Merchant doing Logistic Regression')
+        description='PriceWars Merchant doing Logistic Regression',
+        formatter_class=argparse.MetavarTypeHelpFormatter)
     parser.add_argument('--port',
                         type=int,
                         default=5101,
-                        help='Port to bind flask App to, default is 5101')
+                        help='Port to bind flask App to, default is 5103')
+    parser.add_argument('--train',
+                        type=str,
+                        help='Path to csv file for training')
+    parser.add_argument('--buy',
+                        type=str,
+                        help='Path to buyOffer.csv')
+    parser.add_argument('--merchant',
+                        type=str,
+                        help='Merchant ID for initial csv parsing')
+    parser.add_argument('--test',
+                        type=str,
+                        help='Path to csv file for cross validation')
+    parser.add_argument('--output',
+                        type=str,
+                        help='Output will be written into the spedified file')
     args = parser.parse_args()
-    server = MerchantServer(LogisticRegressionMerchant())
+    if args.train and args.buy and args.merchant and args.test and args.output:
+        initial_learning_parameters = {}
+        initial_learning_parameters['train'] = args.train
+        initial_learning_parameters['buy'] = args.buy
+        initial_learning_parameters['merchant_id'] = args.merchant
+        initial_learning_parameters['testing_set'] = args.test
+        initial_learning_parameters['output_file'] = args.output
+        logging.info('Using given settings for initial learning...')
+        server = MerchantServer(LogisticRegressionMerchant(initial_learning_parameters))
+    else:
+        logging.warning('Not enough parameters for initial learning specified!')
+        logging.info('Using default settings')
+        server = MerchantServer(LogisticRegressionMerchant())
     app = server.app
     app.run(host='0.0.0.0', port=args.port)

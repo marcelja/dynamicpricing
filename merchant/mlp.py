@@ -41,7 +41,6 @@ class MLPMerchant(MLMerchant):
                                      learning_rate_init=0.01,
                                      alpha=0.01)
         product_model.fit(data[0], data[1])
-        # print(product_model.coef_)
         self.product_model_dict[product_id] = product_model
 
     def train_universal_model(self, features: dict):
