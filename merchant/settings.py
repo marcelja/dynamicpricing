@@ -29,7 +29,7 @@ class Settings:
             "initialProducts": 5,
         }
 
-        return Settings.set_initial_learning_parameters(settings)
+        return Settings.set_initial_learning_parameters(settings, initial_learning_parameters)
 
     @staticmethod
     def set_initial_learning_parameters(settings, initial_learning_parameters=None):

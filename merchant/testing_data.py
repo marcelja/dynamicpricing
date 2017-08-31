@@ -9,9 +9,7 @@ class TestingData(object):
         self.joined_data = {}
         self.timestamps = []
         # Note: Can't store all prizes from sales, since we have no sales, do we?
-        self.product_price_list = defaultdict(list)
-        self.product_prices = {product_id: sum(price_list) / len(price_list)
-                               for product_id, price_list in self.product_price_list.items()}
+        self.product_prices = defaultdict(list)
 
     def append_by_csvs(self, market_situations_path, csv_merchant_id):
         with open(market_situations_path, 'r') as csvfile:
@@ -20,9 +18,10 @@ class TestingData(object):
                 self.append_marketplace_situations(line, csv_merchant_id)
 
     def append_marketplace_situations(self, line, csv_merchant_id):
-        self.prepare_joined_data(line['product_id'], line['timestamp'], csv_merchant_id)
-        self.product_price_list[line['product_id']].append(line['price'])
-        merchant = self.joined_data[line['product_id']][line['timestamp']].merchants[csv_merchant_id]
+        self.prepare_joined_data(line['product_id'], line['timestamp'], line['merchant_id'])
+        self.product_prices[line['product_id']].append(float(line['price']))
+
+        merchant = self.joined_data[line['product_id']][line['timestamp']].merchants[line['merchant_id']]
         if line['offer_id'] not in merchant:
             merchant[line['offer_id']] = Offer(line['amount'], line['merchant_id'], line['offer_id'], line['price'],
                                                line['prime'], line['product_id'], line['quality'],
