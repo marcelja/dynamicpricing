@@ -8,6 +8,7 @@ from merchant_sdk.models import Offer
 from models.joined_market_situation import JoinedMarketSituation
 from utils import extract_features, get_buy_offer_fieldnames, get_market_situation_fieldnames
 from timestamp_converter import TimestampConverter
+from collections import defaultdict
 
 
 class TrainingData:
@@ -29,7 +30,7 @@ class TrainingData:
 
     def __init__(self, merchant_token: str, merchant_id: str,
                  market_situations_json=None, sales_json=None):
-        self.joined_data: dict = dict()
+        self.joined_data = defaultdict(lambda : defaultdict(JoinedMarketSituation))
         self.merchant_token: str = merchant_token
         self.merchant_id: str = merchant_id
         self.timestamps: List = []
@@ -138,13 +139,9 @@ class TrainingData:
                                                {'standard': line['shipping_time_standard'], 'prime': line['shipping_time_prime']},
                                                '', line['uid'])
 
-    def prepare_joined_data(self, product_id: str, timestamp: str, merchant_id=None):
-        if product_id not in self.joined_data:
-            self.joined_data[product_id] = dict()
-        if timestamp not in self.joined_data[product_id]:
-            self.joined_data[product_id][timestamp] = JoinedMarketSituation()
-        if merchant_id is not None and merchant_id not in self.joined_data[product_id][timestamp].merchants:
-            self.joined_data[product_id][timestamp].merchants[merchant_id] = dict()
+    def prepare_joined_data(self, product_id, timestamp, merchant_id=None):
+        if merchant_id and merchant_id not in self.joined_data[product_id][timestamp].merchants:
+            self.joined_data[product_id][timestamp].merchants[merchant_id] = {}
 
     def append_sales(self, line: dict):
         if self.last_sale_timestamp and line['timestamp'] <= self.last_sale_timestamp:
