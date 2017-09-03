@@ -70,7 +70,7 @@ if __name__ == "__main__":
     parser.add_argument('--port',
                         type=int,
                         default=5101,
-                        help='Port to bind flask App to, default is 5103')
+                        help='Port to bind flask App to, default is 5101')
     parser.add_argument('--train',
                         type=str,
                         help='Path to csv file for training')
@@ -94,11 +94,11 @@ if __name__ == "__main__":
         initial_learning_parameters['merchant_id'] = args.merchant
         initial_learning_parameters['testing_set'] = args.test
         initial_learning_parameters['output_file'] = args.output
-        logging.info('Using given settings for initial learning...')
-        server = MerchantServer(LogisticRegressionMerchant(initial_learning_parameters))
+        logging.info('Using given settings for cross validation...')
+        MLPMerchant(initial_learning_parameters).cross_validation()
     else:
-        logging.warning('Not enough parameters for initial learning specified!')
-        logging.info('Using default settings')
-        server = MerchantServer(LogisticRegressionMerchant())
-    app = server.app
-    app.run(host='0.0.0.0', port=args.port)
+        logging.info('Not enough parameters for cross validation specified!')
+        logging.info('Starting server')
+        server = MerchantServer(MLPMerchant())
+        app = server.app
+        app.run(host='0.0.0.0', port=args.port)

@@ -68,12 +68,40 @@ if __name__ == "__main__":
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("requests").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(
-        description='PriceWars Merchant doing Random Forest Regression')
+        description='PriceWars Merchant doing Random Forest Regression',
+        formatter_class=argparse.MetavarTypeHelpFormatter)
     parser.add_argument('--port',
                         type=int,
                         default=5102,
                         help='Port to bind flask App to, default is 5102')
+    parser.add_argument('--train',
+                        type=str,
+                        help='Path to csv file for training')
+    parser.add_argument('--buy',
+                        type=str,
+                        help='Path to buyOffer.csv')
+    parser.add_argument('--merchant',
+                        type=str,
+                        help='Merchant ID for initial csv parsing')
+    parser.add_argument('--test',
+                        type=str,
+                        help='Path to csv file for cross validation')
+    parser.add_argument('--output',
+                        type=str,
+                        help='Output will be written into the spedified file')
     args = parser.parse_args()
-    server = MerchantServer(RandomForestMerchant())
-    app = server.app
-    app.run(host='0.0.0.0', port=args.port)
+    if args.train and args.buy and args.merchant and args.test and args.output:
+        initial_learning_parameters = {}
+        initial_learning_parameters['train'] = args.train
+        initial_learning_parameters['buy'] = args.buy
+        initial_learning_parameters['merchant_id'] = args.merchant
+        initial_learning_parameters['testing_set'] = args.test
+        initial_learning_parameters['output_file'] = args.output
+        logging.info('Using given settings for cross validation...')
+        MLPMerchant(initial_learning_parameters).cross_validation()
+    else:
+        logging.info('Not enough parameters for cross validation specified!')
+        logging.info('Starting server')
+        server = MerchantServer(MLPMerchant())
+        app = server.app
+        app.run(host='0.0.0.0', port=args.port)
