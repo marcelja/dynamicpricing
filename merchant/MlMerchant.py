@@ -41,16 +41,18 @@ class MLMerchant(ABC, SuperMerchant):
         save_training_data(self.training_data, self.settings["data_file"])
         self.model = self.train_model(self.training_data.convert_training_data())
         self.universal_model = self.train_universal_model(self.training_data.convert_training_data(True))
+        logging.debug('Calculating performance')
+        self.calc_performance(self.training_data)
+        logging.debug('Setup done. Starting merchant...')
+        self.last_learning = datetime.datetime.now()
+
+    def cross_validation(self):
         logging.debug('Creating testing set')
         self.testing_data = TestingData()
         self.testing_data.append_by_csvs(self.settings['testing_set_csv_path'],
                                          self.settings['initial_merchant_id'])
         logging.debug('Calculate probabilties per offer and write them to disk')
         self.calculate_sales_probality_per_offer(self.testing_data)
-        logging.debug('Calculating performance')
-        self.calc_performance(self.training_data)
-        logging.debug('Setup done. Starting merchant...')
-        self.last_learning = datetime.datetime.now()
 
     def calc_performance(self, training_data: TrainingData):
         if not CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE and not CALCULATE_UNIVERSAL_PERFORMANCE:
