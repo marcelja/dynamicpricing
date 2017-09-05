@@ -32,22 +32,25 @@ class LogisticRegressionMerchant(MLMerchant):
         return self.product_model_dict
 
     def train_model_for_id(self, product_id, data):
-        product_model = LogisticRegression()
+        product_model = LogisticRegression(n_jobs=-1)
         product_model.fit(data[0], data[1])
         # print(product_model.coef_)
         self.product_model_dict[product_id] = product_model
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')
-        universal_model = LogisticRegression()
+        universal_model = LogisticRegression(n_jobs=-1)
         f_vector = []
         s_vector = []
+        start_time = int(time() * 1000)
         for product_id, vector_tuple in features.items():
             f_vector.extend(vector_tuple[0])
             s_vector.extend(vector_tuple[1])
         f, s = shuffle(f_vector, s_vector)
         universal_model.fit(f, s)
+        end_time = int(time() * 1000)
         logging.debug('Finished training universal model')
+        logging.debug('Training took {} ms'.format(end_time - start_time))
         return universal_model
 
     def predict(self, product_id: str, situations: List[List[int]]):

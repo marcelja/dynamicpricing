@@ -31,11 +31,11 @@ class MLPMerchant(MLMerchant):
         return self.product_model_dict
 
     def train_model_for_id(self, product_id, data):
-        product_model = MLPRegressor(hidden_layer_sizes=(80,),
+        product_model = MLPRegressor(hidden_layer_sizes=(5,),
                                      activation='relu',
                                      solver='adam',
                                      learning_rate='adaptive',
-                                     max_iter=500,
+                                     max_iter=1000,
                                      learning_rate_init=0.01,
                                      alpha=0.01)
         product_model.fit(data[0], data[1])
@@ -44,11 +44,11 @@ class MLPMerchant(MLMerchant):
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')
-        self.universal_model = MLPRegressor(hidden_layer_sizes=(80,),
+        self.universal_model = MLPRegressor(hidden_layer_sizes=(5,),
                                             activation='relu',
                                             solver='adam',
                                             learning_rate='adaptive',
-                                            max_iter=500,
+                                            max_iter=1000,
                                             learning_rate_init=0.01,
                                             alpha=0.01)
         start_time = int(time() * 1000)
