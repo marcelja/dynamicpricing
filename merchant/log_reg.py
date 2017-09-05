@@ -99,6 +99,6 @@ if __name__ == "__main__":
     else:
         logging.info('Not enough parameters for cross validation specified!')
         logging.info('Starting server')
-        server = MerchantServer(MLPMerchant())
+        server = MerchantServer(LogisticRegressionMerchant())
         app = server.app
         app.run(host='0.0.0.0', port=args.port)
