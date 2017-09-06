@@ -98,7 +98,7 @@ if __name__ == "__main__":
         initial_learning_parameters['testing_set'] = args.test
         initial_learning_parameters['output_file'] = args.output
         logging.info('Using given settings for cross validation...')
-        MLPMerchant(initial_learning_parameters).cross_validation()
+        RandomForestMerchant(initial_learning_parameters).cross_validation()
     else:
         logging.info('Not enough parameters for cross validation specified!')
         logging.info('Starting server')
