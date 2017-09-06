@@ -3,7 +3,7 @@ import hashlib
 import logging
 import math
 import os
-import pickle
+import dill as pickle
 import sys
 import traceback
 from typing import List
@@ -42,30 +42,10 @@ def download_data(merchant_token):
     return csvs
 
 
-# Unused?
-def calculate_price_rank(price_list, own_price):
-    price_rank = 1
-    for price in price_list:
-        if own_price > price:
-            price_rank += 1
-    return price_rank
-
-
-def calculate_min_price(offers):
-    price, quality = zip(*list(offers.values()))
-    return min(list(price))
-
-
-def calculate_merchant_id_from_token(token):
-    return base64.b64encode(hashlib.sha256(
-        token.encode('utf-8')).digest()).decode('utf-8')
-
-
 def calculate_performance(sales_probabilities: List[float], sales: List[int], feature_count: int):
     try:
         ll1, ll0 = calculate_aic(sales_probabilities, sales, feature_count)
         calculate_mcfadden(ll1, ll0)
-        precision_recall(sales_probabilities, sales)
     except ValueError:
         logging.error("Error in performance calculation!")
         traceback.print_exc(file=sys.stdout)
@@ -129,31 +109,8 @@ def likelihood_nullmodel(sales, average_sales):
 
 def calculate_mcfadden(ll1, ll0):
     mcf = 1 - ll1 / ll0
-    logging.debug('Hint: 0.2 < mcf < 0.4 is a good fit (higher is good)')
+    logging.debug('Hint: 0.2 < mcf < 0.4 is a good fit (higher value is better)')
     logging.info('McFadden R squared is: {}'.format(mcf))
-
-
-def precision_recall(sales_probabilities, sales):
-    tp = 0
-    fp = 0
-    fn = 0
-
-    av = sum(sales_probabilities) / len(sales_probabilities)
-
-    for i in range(len(sales)):
-        if sales_probabilities[i] > av:
-            if sales[i] == 1:
-                tp += 1
-            else:
-                fp += 1
-        elif sales[i] == 0:
-            fn += 1
-
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
-    logging.warning('######### Precision/Recall might be wrong #########')
-    logging.info('Precision is: {}'.format(precision))
-    logging.info('Recall is: {}'.format(recall))
 
 
 def extract_features(offer_id: str, offer_list: List[Offer], universal_features: bool, product_prices: dict):
@@ -275,3 +232,17 @@ def load_history(file):
 def save_training_data(data, file):
     with open(file, 'wb') as m:
         pickle.dump(data, m)
+
+
+def write_calculations_to_file(probability_per_offer, file_path):
+    with open(file_path, 'w') as output:
+        output.write(str(probability_per_offer))
+
+def get_buy_offer_fieldnames():
+    return ['amount','consumer_id','http_code','left_in_stock','merchant_id',
+        'offer_id','price','product_id','quality','timestamp','uid']
+
+def get_market_situation_fieldnames():
+    return ['amount', 'merchant_id', 'offer_id', 'price', 'prime', 'product_id',
+        'quality', 'shipping_time_prime', 'shipping_time_standard', 'timestamp',
+        'triggering_merchant_id', 'uid']
