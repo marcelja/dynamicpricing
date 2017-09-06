@@ -12,10 +12,12 @@ from settings import Settings
 
 
 class RandomForestMerchant(MLMerchant):
-    def __init__(self):
+    def __init__(self, initial_learning_parameters=None):
         self.product_model_dict = dict()
         self.universal_model = None
-        super().__init__(Settings.create('rand_for_models.pkl'))
+        settings = Settings.create('rand_for_models.pkl',
+                                   initial_learning_parameters=initial_learning_parameters)
+        super().__init__(settings)
 
     def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist
