@@ -31,7 +31,7 @@ class RandomForestMerchant(MLMerchant):
         return self.product_model_dict
 
     def train_model_for_id(self, product_id, data):
-        product_model = RandomForestRegressor(n_estimators=10, n_jobs=-1)
+        product_model = RandomForestRegressor(n_estimators=75)
         product_model.fit(data[0], data[1])
         # print(product_model.coef_)
         self.product_model_dict[product_id] = product_model
@@ -46,7 +46,7 @@ class RandomForestMerchant(MLMerchant):
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')
         start_time = int(time() * 1000)
-        universal_model = RandomForestRegressor(n_estimators=10, n_jobs=-1)
+        universal_model = RandomForestRegressor(n_estimators=75)
         f_vector = []
         s_vector = []
         for product_id, vector_tuple in features.items():
