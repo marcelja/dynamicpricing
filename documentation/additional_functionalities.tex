@@ -1,0 +1,12 @@
+%!TEX root = main.tex
+\section{Additional functionalities of our merchant}
+\subsection{Weighting}
+	To deal with changing market situations and a changing customer behaviour, we introduced a weighting system, favoring more current sale events over older ones. Using this technique, the models are learning changed conditions faster without ignoring older sale events at all. Not to completely ignore older sale events is important to prevent the model from changing its behaviour too fast in case of faulty sale events, temporarily different customer behaviours by chance or other reasons. In those cases we do not want the model to break and producing completely senseless prices.
+
+\subsection{Universal model}
+	In addition to our models for each specific product, we introduced a universal model to handle requests for new products we have never sold before. This universal model uses the features \ref{sec:pricerank} to \ref{sec:pricediff3}. These features are independent from the specific product properties, such as ranks, amount of offers or relative price differences (on a scale with the cheapest price being 0\% and the most expensive price being 100\%, where is our price located?).
+
+	This model makes sense since it offers a more precise prediction of a good new price. Compared to other approaches for those situations (such as random prices, average prices over all products, ...), it respects typical consumer decisions without detailed information about the concrete behaviour when buying this product. But being on a specific price rank w. r. t. quality or shipping time can be a good approach anyway, at least better than a randomly chosen price.
+
+\subsection{Random prices}
+	For a kind of price exploration and to avoid having not enough different sale situations leading to a model which cannot predict the best price, we occasionally generate random prices instead of using the model. This random price is any value between 0.8 times and 3 times the purchase price. In case of a sale event whith such a randomly generated price, the model is able to respect it, too, and might have better learning results. Especially at the beginning, when there are few sale events to be considered (and maybe with prices from the universal model), this is important on the way to an optimized model.

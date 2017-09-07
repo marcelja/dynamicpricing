@@ -19,6 +19,7 @@ class LogisticRegressionMerchant(MLMerchant):
         settings = Settings.create('log_reg_models.pkl',
                                    initial_learning_parameters=initial_learning_parameters)
         super().__init__(settings)
+        super().initialize()
 
     def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist
