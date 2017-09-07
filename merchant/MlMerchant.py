@@ -268,7 +268,7 @@ class MLMerchant(ABC, SuperMerchant):
             return potential_prices
 
     def random_price(self, price: float):
-        return round(price * random.uniform(1.01, 3), 2)
+        return round(price * random.uniform(0.8, 3), 2)
 
     def calculate_expected_profits(self, potential_prices: List[float], price: float, probas: List):
         return [(proba * (potential_prices[i] - price)) for i, proba in enumerate(probas)]

@@ -1,14 +1,11 @@
 from unittest import TestCase
-
-from numpy.core.multiarray import arange
+from unittest.mock import patch
 
 from MlMerchant import MLMerchant
 from settings import Settings
-from unittest.mock import patch
 
 
 class TestMLMerchant(TestCase):
-
     @patch.multiple(MLMerchant, __abstractmethods__=set())
     def setUp(self):
         self.tested = MLMerchant(Settings.create(None))
@@ -21,12 +18,18 @@ class TestMLMerchant(TestCase):
 
         self.assert_potential_prices_without_random_distances(actual, expected)
 
-    def test_get_potential_prices_with_random_distances(self):
+    def test_potential_prices_with_random_distances_are_in_range(self):
         actual = self.tested.get_potential_prices(10, True)
 
         self.assertGreaterEqual(len(actual), 43)
         self.assertLessEqual(len(actual), 2100)
         print("Potential Prices with random distance: ", actual)
+
+    def test_random_price_is_in_range(self):
+        actual = self.tested.random_price(10)
+
+        self.assertGreaterEqual(actual, 8)
+        self.assertLessEqual(actual, 30)
 
     # Helper functions
     def assert_potential_prices_without_random_distances(self, actual, expected):
