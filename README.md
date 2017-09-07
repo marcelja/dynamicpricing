@@ -1,6 +1,11 @@
 # dynamicpricing
 
 
+### Run tests
+
+`cd merchant`
+`python -m unittest`
+
 ### Platform on VM
 
 Dashboard: <http://vm-dynpricing-team-8.eaalab.hpi.uni-potsdam.de>
