@@ -1,4 +1,3 @@
-import copy
 import datetime
 import logging
 import os
@@ -9,7 +8,6 @@ from threading import Thread, Lock
 from typing import List
 
 from numpy import arange
-from sklearn.linear_model import LogisticRegression
 
 from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
@@ -25,7 +23,9 @@ class MLMerchant(ABC, SuperMerchant):
         super().__init__(settings)
         self.model = dict()
         self.last_learning = None
-        if os.path.isfile(self.settings["data_file"]):
+
+    def initialize(self):
+        if self.settings["data_file"] is not None and os.path.isfile(self.settings["data_file"]):
             self.machine_learning()
         else:
             self.initial_learning()
@@ -227,7 +227,7 @@ class MLMerchant(ABC, SuperMerchant):
 
     def ml_highest_profit(self, current_offers: List[Offer], offer: Offer, price: float):
         try:
-            potential_prices = list(arange(price * 0.9, price * 3, 0.5))
+            potential_prices = self.get_potential_prices(price)
 
             if str(offer.product_id) in self.model:
                 lst = self.create_prediction_data(offer, current_offers, potential_prices, price, False)
@@ -251,6 +251,21 @@ class MLMerchant(ABC, SuperMerchant):
             print(e)
             sys.stdout.flush()
             return self.random_price(price)
+
+    def get_potential_prices(self, price, use_random_distance=False):
+        if not use_random_distance:
+            return list(arange(price * 0.9, price * 3, 0.05))
+        else:
+            potential_prices = list()
+            lowest_price = price * 0.9
+            highest_price = price * 3
+            min_difference = 1  # in cent
+            max_difference = 50  # in cent
+            price = lowest_price
+            while price <= highest_price:
+                potential_prices.append(price)
+                price += (random.randint(min_difference, max_difference) * 0.01)
+            return potential_prices
 
     def random_price(self, price: float):
         return round(price * random.uniform(1.01, 3), 2)

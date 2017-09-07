@@ -16,6 +16,7 @@ class RandomForestMerchant(MLMerchant):
         self.product_model_dict = dict()
         self.universal_model = None
         super().__init__(Settings.create('rand_for_models.pkl'))
+        super().initialize()
 
     def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist

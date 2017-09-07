@@ -1,8 +1,8 @@
 import argparse
 import logging
+from concurrent.futures import ThreadPoolExecutor, wait
 from time import time
 from typing import List
-from concurrent.futures import ThreadPoolExecutor, wait
 
 from sklearn.neural_network import MLPRegressor
 
@@ -16,6 +16,7 @@ class MLPMerchant(MLMerchant):
         self.product_model_dict = dict()
         self.universal_model = None
         super().__init__(Settings.create('mlp_models.pkl'))
+        super().initialize()
 
     def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist
