@@ -1,4 +1,4 @@
-from merchant.timestamp_converter import TimestampConverter
+from timestamp_converter import TimestampConverter
 
 
 class MarketSituation:
