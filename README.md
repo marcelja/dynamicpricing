@@ -3,8 +3,8 @@
 
 ### Run tests
 
-`cd merchant`
-`python -m unittest`
+* `cd merchant`
+* `python -m unittest`
 
 ### Platform on VM
 
