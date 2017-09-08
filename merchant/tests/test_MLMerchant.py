@@ -2,13 +2,13 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from MlMerchant import MLMerchant
-from settings import Settings
+from settingsbuilder import SettingsBuilder
 
 
 class TestMLMerchant(TestCase):
     @patch.multiple(MLMerchant, __abstractmethods__=set())
     def setUp(self):
-        self.tested = MLMerchant(Settings.create(None))
+        self.tested = MLMerchant(SettingsBuilder().build())
 
     # Tests
     def test_get_potential_prices_without_random_distances(self):

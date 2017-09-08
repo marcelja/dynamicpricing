@@ -8,15 +8,17 @@ from sklearn.neural_network import MLPRegressor
 
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
-from settings import Settings
+from settingsbuilder import SettingsBuilder
 
 
 class MLPMerchant(MLMerchant):
     def __init__(self, initial_learning_parameters=None):
         self.product_model_dict = dict()
         self.universal_model = None
-        settings = Settings.create('mlp_models.pkl',
-                                   initial_learning_parameters=initial_learning_parameters)
+        settings = SettingsBuilder() \
+            .with_data_file('mlp_models.pkl') \
+            .with_initial_learning_parameters(initial_learning_parameters) \
+            .build()
         super().__init__(settings)
         super().initialize()
 
@@ -76,6 +78,7 @@ class MLPMerchant(MLMerchant):
         for idx, predict in enumerate(predicted):
             predicted[idx] = max(predicted[idx], 0.000001)
         return predicted
+
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)

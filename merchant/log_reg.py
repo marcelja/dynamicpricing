@@ -9,15 +9,17 @@ from sklearn.utils import shuffle
 
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
-from settings import Settings
+from settingsbuilder import SettingsBuilder
 
 
 class LogisticRegressionMerchant(MLMerchant):
     def __init__(self, initial_learning_parameters=None):
         self.product_model_dict = dict()
         self.universal_model = None
-        settings = Settings.create('log_reg_models.pkl',
-                                   initial_learning_parameters=initial_learning_parameters)
+        settings = SettingsBuilder() \
+            .with_data_file('log_reg_models.pkl') \
+            .with_initial_learning_parameters(initial_learning_parameters) \
+            .build()
         super().__init__(settings)
         super().initialize()
 

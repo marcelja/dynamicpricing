@@ -4,7 +4,7 @@ import sys
 
 from SuperMerchant import SuperMerchant
 from merchant_sdk import MerchantServer
-from settings import Settings
+from settingsbuilder import SettingsBuilder
 
 sys.path.append('./')
 sys.path.append('../')
@@ -12,7 +12,9 @@ sys.path.append('../')
 
 class RandomMerchant(SuperMerchant):
     def __init__(self):
-        settings = Settings.create(None, '7xCvFloHDuwm9iHDVYpjjoVzlXue01I7yU3EGsVTnSGwAXAg6yQqnvpZTkEUlWbk')
+        settings = SettingsBuilder() \
+            .with_merchant_token('7xCvFloHDuwm9iHDVYpjjoVzlXue01I7yU3EGsVTnSGwAXAg6yQqnvpZTkEUlWbk') \
+            .build()
         settings["shipping"] = 5
         settings["max_req_per_sec"] = 40.0
         super().__init__(settings)
