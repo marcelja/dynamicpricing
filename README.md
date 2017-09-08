@@ -4,7 +4,7 @@
 ### Run tests
 
 * `cd merchant`
-* `python -m unittest`
+* `python -m unittest` bzw. `python3 -m unittest`
 
 ### Platform on VM
 
