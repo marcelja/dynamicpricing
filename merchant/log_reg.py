@@ -9,7 +9,7 @@ from sklearn.utils import shuffle
 
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
-from settingsbuilder import SettingsBuilder
+from utils.settingsbuilder import SettingsBuilder
 
 
 class LogisticRegressionMerchant(MLMerchant):

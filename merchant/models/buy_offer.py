@@ -1,4 +1,4 @@
-from timestamp_converter import TimestampConverter
+from utils.timestamp_converter import TimestampConverter
 
 
 class BuyOffer:

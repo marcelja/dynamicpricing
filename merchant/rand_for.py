@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
-from settingsbuilder import SettingsBuilder
+from utils.settingsbuilder import SettingsBuilder
 
 
 class RandomForestMerchant(MLMerchant):

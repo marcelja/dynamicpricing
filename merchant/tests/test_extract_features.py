@@ -1,7 +1,7 @@
 from unittest import TestCase
 
-import feature_extractor
 from merchant_sdk.models import Offer
+from utils import feature_extractor
 
 
 # TODO: extend tests

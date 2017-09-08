@@ -1,15 +1,16 @@
 import bisect
 import csv
 import logging
+from collections import defaultdict
 from typing import List
 
-from kafka_downloader import download_kafka_files
+from utils.timestamp_converter import TimestampConverter
+
 from merchant_sdk.models import Offer
 from models.joined_market_situation import JoinedMarketSituation
-from utils import get_buy_offer_fieldnames, get_market_situation_fieldnames
-from feature_extractor import extract_features
-from timestamp_converter import TimestampConverter
-from collections import defaultdict
+from utils.utils import get_buy_offer_fieldnames, get_market_situation_fieldnames
+from utils.feature_extractor import extract_features
+from utils.kafka_downloader import download_kafka_files
 
 
 class TrainingData:

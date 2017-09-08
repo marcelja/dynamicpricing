@@ -2,7 +2,7 @@ import csv
 from merchant_sdk.models import Offer
 from models.joined_market_situation import JoinedMarketSituation
 from collections import defaultdict
-from utils import get_market_situation_fieldnames
+from utils.utils import get_market_situation_fieldnames
 
 
 class TestingData(object):

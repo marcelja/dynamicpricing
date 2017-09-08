@@ -8,7 +8,7 @@ from sklearn.neural_network import MLPRegressor
 
 from MlMerchant import MLMerchant
 from merchant_sdk import MerchantServer
-from settingsbuilder import SettingsBuilder
+from utils.settingsbuilder import SettingsBuilder
 
 
 class MLPMerchant(MLMerchant):

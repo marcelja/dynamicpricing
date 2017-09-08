@@ -4,7 +4,7 @@ import sys
 
 from SuperMerchant import SuperMerchant
 from merchant_sdk import MerchantServer
-from settingsbuilder import SettingsBuilder
+from utils.settingsbuilder import SettingsBuilder
 
 sys.path.append('./')
 sys.path.append('../')

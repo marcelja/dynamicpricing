@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-import performance_calculator
+from utils import performance_calculator
 
 
 class TestCalculatePerformance(TestCase):

@@ -1,8 +1,8 @@
 import csv
 
-from buy_offer import BuyOffer
-from market_situation import MarketSituation
-from timestamp_converter import TimestampConverter
+from models.buy_offer import BuyOffer
+from models.market_situation import MarketSituation
+from utils.timestamp_converter import TimestampConverter
 
 
 class CSVReader:

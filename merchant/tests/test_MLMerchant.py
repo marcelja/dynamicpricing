@@ -2,7 +2,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from MlMerchant import MLMerchant
-from settingsbuilder import SettingsBuilder
+from utils.settingsbuilder import SettingsBuilder
 
 
 class TestMLMerchant(TestCase):
