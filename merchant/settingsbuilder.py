@@ -6,10 +6,10 @@ from merchant_sdk import MerchantBaseLogic
 class SettingsBuilder:
     def __init__(self):
         self.settings = dict()
-        self.initialize()
+        self.__initialize()
 
-    def initialize(self):
-        merchant_token = self.get_merchant_token()
+    def __initialize(self):
+        merchant_token = self.__get_merchant_token()
         self.settings["merchant_token"] = merchant_token
         self.settings["merchant_id"] = MerchantBaseLogic.calculate_id(merchant_token)
         self.settings["marketplace_url"] = MerchantBaseLogic.get_marketplace_url()
@@ -32,7 +32,7 @@ class SettingsBuilder:
         self.settings["output_file"] = '../tmp/out.txt'
         return self
 
-    def get_merchant_token(self):
+    def __get_merchant_token(self):
         if os.getenv('API_TOKEN'):
             return os.getenv('API_TOKEN')
         else:
