@@ -1,14 +1,8 @@
-import base64
-import hashlib
 import logging
-import math
 import os
-import dill as pickle
-import sys
-import traceback
 from typing import List
 
-import numpy
+import dill as pickle
 import pandas as pd
 
 from merchant_sdk.api import KafkaApi, PricewarsRequester
@@ -42,77 +36,6 @@ def download_data(merchant_token):
     return csvs
 
 
-def calculate_performance(sales_probabilities: List[float], sales: List[int], feature_count: int):
-    try:
-        ll1, ll0 = calculate_aic(sales_probabilities, sales, feature_count)
-        calculate_mcfadden(ll1, ll0)
-    except ValueError:
-        logging.error("Error in performance calculation!")
-        traceback.print_exc(file=sys.stdout)
-
-
-def calculate_aic(sales_probabilities: List[float], sales: List[int], feature_count: int):
-    # sales_probabilities: [0.35, 0.29, ...]
-    # sales: [0, 1, 1, 0, ...]
-    # feature_count: int
-
-    # Für jede Situation:
-    # verkauft? * log(verkaufswahrsch.) + (1 - verkauft?) * (1 - log(1-verkaufswahrsch.))
-    # var LL  = sum{i in 1..B} ( y[i]*log(P[i]) + (1-y[i])*log(1-P[i]) );
-
-    # Nullmodel: Average sales probability based on actual sales
-    # Some stuff to read about it:
-    # https://stats.idre.ucla.edu/other/mult-pkg/faq/general/faq-what-are-pseudo-r-squareds/
-    # http://www.karteikarte.com/card/2013125/null-modell
-
-    # http://avesbiodiv.mncn.csic.es/estadistica/ejemploaic.pdf
-    # AIC = -2*ln(likelihood) + 2*K
-    # with k = number of parameters in the model
-    # with likelihood function from slides:
-    # product of p^yi ⋅(1−p)^1−yi (probability of sale if sold, counter probability else)
-
-    if len(sales) != 0:
-        avg_sales = sum(sales) / len(sales)
-    else:
-        avg_sales = 0
-
-    ll = likelihood(sales, sales_probabilities)
-    logging.info('Log likelihood is: {}'.format(ll))
-
-    ll0 = likelihood_nullmodel(sales, avg_sales)
-    logging.info('LL0 is: {}'.format(ll0))
-
-    aic = - 2 * ll + 2 * feature_count
-    logging.info('AIC is: {}'.format(aic))
-
-    return ll, ll0
-
-
-def likelihood(sales, sales_probabilities):
-    ll = 0
-    for i in range(len(sales)):
-        ll += sales[i] * math.log(sales_probabilities[i]) + (1 - sales[i]) * (math.log(1 - sales_probabilities[i]))
-    return ll
-
-
-def log_likelihood(y_true, y_pred):
-    ones = numpy.full(len(y_pred), 1)
-    return sum(y_true * numpy.log(y_pred) + (ones - y_true) * numpy.log(ones - y_pred))
-
-
-def likelihood_nullmodel(sales, average_sales):
-    ll0 = 0
-    for i in range(len(sales)):
-        ll0 += sales[i] * math.log(average_sales) + (1 - sales[i]) * (math.log(1 - average_sales))
-    return ll0
-
-
-def calculate_mcfadden(ll1, ll0):
-    mcf = 1 - ll1 / ll0
-    logging.debug('Hint: 0.2 < mcf < 0.4 is a good fit (higher value is better)')
-    logging.info('McFadden R squared is: {}'.format(mcf))
-
-
 def extract_features(offer_id: str, offer_list: List[Offer], universal_features: bool, product_prices: dict):
     if universal_features:
         return __extract_universal_features(offer_id, offer_list)
@@ -124,9 +47,9 @@ def __extract_universal_features(offer_id: str, offer_list: List[Offer]):
     current_offer = [x for x in offer_list if offer_id == x.offer_id][0]
     other_offers = [x for x in offer_list if offer_id != x.offer_id]
 
-    ranks = calculate_ranks(current_offer, other_offers)
-    price_differences = calculate_price_differences(float(current_offer.price),
-                                                    other_offers)
+    ranks = __calculate_ranks(current_offer, other_offers)
+    price_differences = __calculate_price_differences(float(current_offer.price),
+                                                      other_offers)
 
     # if new features are added, update NUM_OF_UNIVERSAL_FEATURES variable!
     features = [ranks[0],  # price_rank
@@ -145,9 +68,9 @@ def __extract_product_specific_features(offer_id: str, offer_list: List[Offer], 
     current_offer: Offer = [x for x in offer_list if offer_id == x.offer_id][0]
     other_offers: List = [x for x in offer_list if offer_id != x.offer_id]
 
-    ranks = calculate_ranks(current_offer, other_offers)
-    price_differences = calculate_price_differences(float(current_offer.price),
-                                                    other_offers)
+    ranks = __calculate_ranks(current_offer, other_offers)
+    price_differences = __calculate_price_differences(float(current_offer.price),
+                                                      other_offers)
 
     # if new features are added, update NUM_OF_PRODUCT_SPECIFIC_FEATURES variable!
     features = [ranks[0],  # price_rank
@@ -163,9 +86,9 @@ def __extract_product_specific_features(offer_id: str, offer_list: List[Offer], 
                 float(current_offer.price),  # price
                 int(current_offer.quality),  # quality
                 int(current_offer.shipping_time['standard']),  # shipping_time
-                calculate_average_price(other_offers),  # avg_price
-                calculate_average_price(offer_list),  # avg_price_with_current_offer
-                calculate_average_price_from_price_list(product_prices.get(current_offer.product_id)),  # average sale prices
+                __calculate_average_price(other_offers),  # avg_price
+                __calculate_average_price(offer_list),  # avg_price_with_current_offer
+                __calculate_average_price_from_price_list(product_prices.get(current_offer.product_id)),  # average sale prices
                 price_differences[0],  # price_diff_to_min
                 price_differences[2],  # price_diff_to_2nd_min
                 price_differences[4]  # price_diff_to_3rd_min
@@ -173,7 +96,7 @@ def __extract_product_specific_features(offer_id: str, offer_list: List[Offer], 
     return features
 
 
-def calculate_ranks(current_offer, other_offers):
+def __calculate_ranks(current_offer, other_offers):
     price_rank = 1
     quality_rank = 1
     shipping_time_rank = 1
@@ -188,20 +111,20 @@ def calculate_ranks(current_offer, other_offers):
     return price_rank, quality_rank, shipping_time_rank
 
 
-def calculate_price_differences(current_price, other_offers):
+def __calculate_price_differences(current_price, other_offers):
     price_list = sorted([float(x.price) for x in other_offers])
     result = []
     for i in [0, 1, 2]:
         if i >= len(price_list):
             result.extend([0, 0])
             continue
-        diffs = calculate_price_difference(current_price, price_list[i],
-                                           price_list[-1])
+        diffs = __calculate_price_difference(current_price, price_list[i],
+                                             price_list[-1])
         result.extend(diffs)
     return result
 
 
-def calculate_price_difference(price1, price2, max_price):
+def __calculate_price_difference(price1, price2, max_price):
     diff = price1 - price2
     if price1 <= price2:
         diff_in_percent = 0.
@@ -212,12 +135,12 @@ def calculate_price_difference(price1, price2, max_price):
     return [diff, diff_in_percent]
 
 
-def calculate_average_price(offers):
+def __calculate_average_price(offers):
     price_list = [float(x.price) for x in offers]
-    return calculate_average_price_from_price_list(price_list)
+    return __calculate_average_price_from_price_list(price_list)
 
 
-def calculate_average_price_from_price_list(price_list: List):
+def __calculate_average_price_from_price_list(price_list: List):
     if price_list and len(price_list) != 0:
         return sum(price_list) / len(price_list)
     else:

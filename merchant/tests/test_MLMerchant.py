@@ -31,6 +31,13 @@ class TestMLMerchant(TestCase):
         self.assertGreaterEqual(actual, 8)
         self.assertLessEqual(actual, 30)
 
+    def test_calculate_expected_profits(self):
+        expected = [-0.3, -0.2, 0.0, 0.3, 0.7]
+
+        actual = self.tested.calculate_expected_profits([9, 9.5, 10, 10.5, 11], 10.0, [0.3, 0.4, 0.5, 0.6, 0.7])
+
+        self.assertListEqual(expected, actual)
+
     # Helper functions
     def assert_potential_prices_without_random_distances(self, actual, expected):
         self.assertEqual(420, len(actual))
