@@ -6,7 +6,8 @@ from typing import List
 from kafka_downloader import download_kafka_files
 from merchant_sdk.models import Offer
 from models.joined_market_situation import JoinedMarketSituation
-from utils import extract_features, get_buy_offer_fieldnames, get_market_situation_fieldnames
+from utils import get_buy_offer_fieldnames, get_market_situation_fieldnames
+from feature_extractor import extract_features
 from timestamp_converter import TimestampConverter
 from collections import defaultdict
 

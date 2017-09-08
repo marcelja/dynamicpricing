@@ -13,7 +13,8 @@ from SuperMerchant import SuperMerchant
 from merchant_sdk.models import Offer, Product
 from training_data import TrainingData
 from testing_data import TestingData
-from utils import extract_features, save_training_data, load_history, NUM_OF_UNIVERSAL_FEATURES, NUM_OF_PRODUCT_SPECIFIC_FEATURES, write_calculations_to_file
+from utils import save_training_data, load_history, NUM_OF_UNIVERSAL_FEATURES, NUM_OF_PRODUCT_SPECIFIC_FEATURES, write_calculations_to_file
+from feature_extractor import extract_features
 from performance_calculator import calculate_performance
 
 CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE = True
