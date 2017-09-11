@@ -1,8 +1,8 @@
 from MlMerchant import MLMerchant
 from abstract_merchant import AbstractMerchant
-from argument_parser import parse_arguments
-from cross_validator import CrossValidator
 from ml_engines.log_reg import LogisticRegressionEngine
+from utils.argument_parser import parse_arguments
+from utils.cross_validator import CrossValidator
 from utils.settingsbuilder import SettingsBuilder
 
 

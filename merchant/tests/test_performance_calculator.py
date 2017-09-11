@@ -1,7 +1,7 @@
 from unittest import TestCase
 
-from performance_calculator import PerformanceCalculator
 from tests.helper.ml_testengine import MlTestEngine
+from utils.performance_calculator import PerformanceCalculator
 
 
 class TestPerformanceCalculator(TestCase):

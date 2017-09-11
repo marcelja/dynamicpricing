@@ -2,8 +2,8 @@ import logging
 from abc import ABC, abstractmethod
 
 from MlMerchant import MLMerchant
-from cross_validator import CrossValidator
 from merchant_sdk import MerchantServer
+from utils.cross_validator import CrossValidator
 from utils.settingsbuilder import SettingsBuilder
 
 

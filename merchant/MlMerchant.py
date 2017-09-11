@@ -10,9 +10,9 @@ from SuperMerchant import SuperMerchant
 from apiabstraction import ApiAbstraction
 from merchant_sdk.models import Offer, Product
 from ml_engine import MlEngine
-from performance_calculator import PerformanceCalculator
 from training_data import TrainingData
 from utils.feature_extractor import extract_features
+from utils.performance_calculator import PerformanceCalculator
 from utils.prices import PriceUtils
 from utils.utils import save_training_data, load_history
 

@@ -1,6 +1,6 @@
 from abc import abstractmethod
 
-from api import Api
+from api.api import Api
 from apiabstraction import ApiAbstraction
 from merchant_sdk import MerchantBaseLogic
 
