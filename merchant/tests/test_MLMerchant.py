@@ -7,7 +7,6 @@ from utils.settingsbuilder import SettingsBuilder
 
 
 class TestMLMerchant(TestCase):
-    @patch.multiple(MLMerchant, __abstractmethods__=set())
     def setUp(self):
         self.tested = MLMerchant(SettingsBuilder().build(), MlTestEngine())
 
