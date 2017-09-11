@@ -143,47 +143,48 @@ class MLMerchant(SuperMerchant):
             self.last_learning = datetime.datetime.now()
             self.update_machine_learning()
 
-    def calculate_optimal_price(self, product_prices_by_uid: dict, offer: Offer, current_offers: List[Offer] = None, product: Product = None):
+    def calculate_optimal_price(self, product_prices_by_uid: dict, own_offer: Offer, current_offers: List[Offer] = None, product: Product = None):
         price = product_prices_by_uid[product.uid]
         if random.uniform(0, 1) < 0.01:
             print('r', end='')
             sys.stdout.flush()
             return self.priceutils.random_price(price)
         else:
-            return self.highest_profit_from_ml(current_offers, offer, price)
+            return self.highest_profit_from_ml(current_offers, own_offer, price)
 
-    def highest_profit_from_ml(self, current_offers: List[Offer], offer: Offer, price: float):
+    def highest_profit_from_ml(self, current_offers: List[Offer], own_offer: Offer, price: float):
         try:
-            potential_prices = self.priceutils.get_potential_prices(price)
-            if str(offer.product_id) in self.ml_engine.product_model_dict:
-                probas = self.__highest_profit_from_product_model(current_offers, offer, potential_prices, price)
+            potential_prices = self.priceutils.get_potential_prices(price, False)
+            if str(own_offer.product_id) in self.ml_engine.product_model_dict:
+                probas = self.__highest_profit_from_product_model(current_offers, own_offer, potential_prices, price)
             else:
-                probas = self.__highest_profit_from_universal_model(current_offers, offer, potential_prices, price)
+                probas = self.__highest_profit_from_universal_model(current_offers, own_offer, potential_prices, price)
             expected_profits = self.priceutils.calculate_expected_profits(potential_prices, price, probas)
             best_price = potential_prices[expected_profits.index(max(expected_profits))]
             return best_price
         except (KeyError, ValueError, AttributeError) as e:
+            raise e
             # Fallback for new products
             print('R', end='')
             print(e)
             sys.stdout.flush()
             return self.priceutils.random_price(price)
 
-    def __highest_profit_from_universal_model(self, current_offers, offer, potential_prices, price):
-        lst = self.create_prediction_data(offer, current_offers, potential_prices, price, True)
+    def __highest_profit_from_universal_model(self, current_offers, own_offer, potential_prices, price):
+        lst = self.__create_prediction_data(own_offer, current_offers, potential_prices, price, True)
         probas = self.ml_engine.predict_with_universal_model(lst)
         print('U', end='')
         sys.stdout.flush()
         return probas
 
-    def __highest_profit_from_product_model(self, current_offers, offer, potential_prices, price):
-        lst = self.create_prediction_data(offer, current_offers, potential_prices, price, False)
-        probas = self.ml_engine.predict(str(offer.product_id), lst)
+    def __highest_profit_from_product_model(self, current_offers, own_offer, potential_prices, price):
+        lst = self.__create_prediction_data(own_offer, current_offers, potential_prices, price, False)
+        probas = self.ml_engine.predict(str(own_offer.product_id), lst)
         print('.', end='')
         sys.stdout.flush()
         return probas
 
-    def create_prediction_data(self, own_offer: Offer, current_offers: List[Offer], potential_prices: List[int], price: float, universal_features: bool):
+    def __create_prediction_data(self, own_offer: Offer, current_offers: List[Offer], potential_prices: List[int], price: float, universal_features: bool):
         lst = []
         for potential_price in potential_prices:
             potential_price_candidate = potential_price / 10.0
