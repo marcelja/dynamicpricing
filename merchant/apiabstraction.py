@@ -1,5 +1,6 @@
+import logging
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Dict
 
 from merchant_sdk.models import Offer, MerchantRegisterResponse, Product
 
@@ -67,4 +68,12 @@ class ApiAbstraction(ABC):
 
     @abstractmethod
     def update_producer_url(self, producer_url: str):
+        pass
+
+    @abstractmethod
+    def reset_request_counter(self):
+        pass
+
+    @abstractmethod
+    def get_request_counter(self):
         pass

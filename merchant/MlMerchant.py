@@ -5,7 +5,7 @@ import random
 import sys
 from abc import ABC, abstractmethod
 from threading import Thread, Lock
-from typing import List
+from typing import List, Dict
 
 from numpy import arange
 
@@ -134,10 +134,10 @@ class MLMerchant(ABC, SuperMerchant):
 
     def execute_logic(self):
         self.perform_learning_if_necessary()
-        request_count = 0
+        self.api.reset_request_counter()
 
         # get and process existing offers
-        offers = self.get_offers()
+        offers = self.api.get_offers()
         own_offers = [offer for offer in offers if offer.merchant_id == self.merchant_id]
         own_offers_by_uid = {offer.uid: offer for offer in own_offers}
         missing_offers = self.settings["max_amount_of_offers"] - sum(offer.amount for offer in own_offers)
@@ -147,30 +147,24 @@ class MLMerchant(ABC, SuperMerchant):
         product_prices_by_uid = self.get_product_prices()
 
         # handle bought products and either add them to existing offers or create new ones
-        request_count = self.update_existing_offers(offers, own_offers, product_prices_by_uid, request_count)
-        request_count = self.process_bought_products(new_products, offers, own_offers_by_uid, product_prices_by_uid, request_count)
+        self.update_existing_offers(offers, own_offers, product_prices_by_uid)
+        self.process_bought_products(new_products, offers, own_offers_by_uid, product_prices_by_uid)
 
-        return max(1.0, request_count) / self.settings["max_req_per_sec"]
+        return max(1.0, self.api.get_request_counter) / self.settings["max_req_per_sec"]
 
-    def get_product_prices(self):
-        try:
-            products = self.api.get_products()
-            product_prices_by_uid = {product.uid: product.price for product in products}
-            return product_prices_by_uid
-        except Exception as e:
-            logging.warning('Could not buy receive products from producer api: {}'.format(e))
-        return dict()
+    def get_product_prices(self) -> Dict[str: float]:
+        products = self.api.get_products()
+        return {product.uid: product.price for product in products}
 
-    def process_bought_products(self, new_products: List[Product], offers: List[Offer], own_offers_by_uid: dict, product_prices_by_uid: dict, request_count: int):
+    def process_bought_products(self, new_products: List[Product], offers: List[Offer], own_offers_by_uid: dict, product_prices_by_uid: dict):
         for product in new_products:
             try:
                 if product.uid in own_offers_by_uid:
-                    request_count = self.update_existing_offer(offers, own_offers_by_uid, product, product_prices_by_uid, request_count)
+                    self.update_existing_offer(offers, own_offers_by_uid, product, product_prices_by_uid)
                 else:
                     self.create_new_offer(offers, product, product_prices_by_uid)
             except Exception as e:
                 print('could not handle product:', product, e)
-        return request_count
 
     def create_new_offer(self, offers: List[Offer], product: Product, product_prices_by_uid: dict):
         offer = Offer.from_product(product)
@@ -179,58 +173,31 @@ class MLMerchant(ABC, SuperMerchant):
         offer.shipping_time['prime'] = self.settings["primeShipping"]
         offer.merchant_id = self.merchant_id
         offer.price = self.calculate_optimal_price(product_prices_by_uid, offer, current_offers=offers + [offer], product=product)
-        try:
-            self.api.add_offer(offer)
-        except Exception as e:
-            print('error on adding an offer to the marketplace:', e)
+        self.api.add_offer(offer)
 
-    def update_existing_offer(self, offers: List[Offer], own_offers_by_uid: dict, product: Product, product_prices_by_uid: dict, request_count: int):
+    def update_existing_offer(self, offers: List[Offer], own_offers_by_uid: dict, product: Product, product_prices_by_uid: dict):
         offer = own_offers_by_uid[product.uid]
         offer.amount += product.amount
         offer.signature = product.signature
-        try:
-            self.api.restock(offer.offer_id, amount=product.amount, signature=product.signature)
-        except Exception as e:
-            print('error on restocking an offer:', e)
+        self.api.restock(offer.offer_id, amount=product.amount, signature=product.signature)
         offer.price = self.calculate_optimal_price(product_prices_by_uid, offer, current_offers=offers, product=product)
-        try:
-            self.api.update_offer(offer)
-            request_count += 1
-        except Exception as e:
-            print('error on updating an offer:', e)
-        return request_count
+        self.api.update_offer(offer)
 
-    def update_existing_offers(self, offers: List[Offer], own_offers: List[Offer], product_prices_by_uid: dict, request_count: int):
+    def update_existing_offers(self, offers: List[Offer], own_offers: List[Offer], product_prices_by_uid: dict):
         for own_offer in own_offers:
             if own_offer.amount > 0:
                 # only update an existing offer, when new price is different from existing one
                 old_price = own_offer.price
                 own_offer.price = self.calculate_optimal_price(product_prices_by_uid, own_offer, current_offers=offers)
                 if float(own_offer.price) != float(old_price):
-                    try:
-                        self.api.update_offer(own_offer)
-                        request_count += 1
-                    except Exception as e:
-                        logging.warning('Could not update offer on marketplace: {}'.format(e))
-        return request_count
+                    self.api.update_offer(own_offer)
 
     def buy_new_products(self, missing_offers: int):
         new_products = []
         for _ in range(missing_offers):
-            try:
-                prod = self.api.buy_product()
-                new_products.append(prod)
-            except Exception as e:
-                logging.warning('Could not buy new product from producer api: {}'.format(e))
-                raise e
+            prod = self.api.buy_product()
+            new_products.append(prod)
         return new_products
-
-    def get_offers(self):
-        try:
-            return self.api.get_offers(include_empty_offers=False)
-        except Exception as e:
-            logging.warning('Could not receive offers from marketplace: {}'.format(e))
-            raise e
 
     def perform_learning_if_necessary(self):
         if self.last_learning:

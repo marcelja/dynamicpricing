@@ -69,3 +69,9 @@ class TestApi(ApiAbstraction):
 
     def update_producer_url(self, producer_url: str):
         pass
+
+    def get_request_counter(self):
+        pass
+
+    def reset_request_counter(self):
+        pass
