@@ -152,7 +152,7 @@ class MLMerchant(ABC, SuperMerchant):
 
         return max(1.0, self.api.get_request_counter) / self.settings["max_req_per_sec"]
 
-    def get_product_prices(self) -> Dict[str: float]:
+    def get_product_prices(self) -> Dict[str, float]:
         products = self.api.get_products()
         return {product.uid: product.price for product in products}
 
