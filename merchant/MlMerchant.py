@@ -8,22 +8,23 @@ from threading import Thread, Lock
 from typing import List
 
 from numpy import arange
-from utils.performance_calculator import calculate_performance
 
 from SuperMerchant import SuperMerchant
+from apiabstraction import ApiAbstraction
 from merchant_sdk.models import Offer, Product
 from testing_data import TestingData
 from training_data import TrainingData
-from utils.utils import save_training_data, load_history, NUM_OF_UNIVERSAL_FEATURES, NUM_OF_PRODUCT_SPECIFIC_FEATURES, write_calculations_to_file
 from utils.feature_extractor import extract_features
+from utils.performance_calculator import calculate_performance
+from utils.utils import save_training_data, load_history, NUM_OF_UNIVERSAL_FEATURES, NUM_OF_PRODUCT_SPECIFIC_FEATURES, write_calculations_to_file
 
 CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE = True
 CALCULATE_UNIVERSAL_PERFORMANCE = True
 
 
 class MLMerchant(ABC, SuperMerchant):
-    def __init__(self, settings):
-        super().__init__(settings)
+    def __init__(self, settings, api: ApiAbstraction = None):
+        super().__init__(settings, api)
         self.model = dict()
         self.last_learning = None
 
@@ -153,7 +154,7 @@ class MLMerchant(ABC, SuperMerchant):
 
     def get_product_prices(self):
         try:
-            products = self.producer_api.get_products()
+            products = self.api.get_products()
             product_prices_by_uid = {product.uid: product.price for product in products}
             return product_prices_by_uid
         except Exception as e:
@@ -179,7 +180,7 @@ class MLMerchant(ABC, SuperMerchant):
         offer.merchant_id = self.merchant_id
         offer.price = self.calculate_optimal_price(product_prices_by_uid, offer, current_offers=offers + [offer], product=product)
         try:
-            self.marketplace_api.add_offer(offer)
+            self.api.add_offer(offer)
         except Exception as e:
             print('error on adding an offer to the marketplace:', e)
 
@@ -188,12 +189,12 @@ class MLMerchant(ABC, SuperMerchant):
         offer.amount += product.amount
         offer.signature = product.signature
         try:
-            self.marketplace_api.restock(offer.offer_id, amount=product.amount, signature=product.signature)
+            self.api.restock(offer.offer_id, amount=product.amount, signature=product.signature)
         except Exception as e:
             print('error on restocking an offer:', e)
         offer.price = self.calculate_optimal_price(product_prices_by_uid, offer, current_offers=offers, product=product)
         try:
-            self.marketplace_api.update_offer(offer)
+            self.api.update_offer(offer)
             request_count += 1
         except Exception as e:
             print('error on updating an offer:', e)
@@ -207,7 +208,7 @@ class MLMerchant(ABC, SuperMerchant):
                 own_offer.price = self.calculate_optimal_price(product_prices_by_uid, own_offer, current_offers=offers)
                 if float(own_offer.price) != float(old_price):
                     try:
-                        self.marketplace_api.update_offer(own_offer)
+                        self.api.update_offer(own_offer)
                         request_count += 1
                     except Exception as e:
                         logging.warning('Could not update offer on marketplace: {}'.format(e))
@@ -217,7 +218,7 @@ class MLMerchant(ABC, SuperMerchant):
         new_products = []
         for _ in range(missing_offers):
             try:
-                prod = self.producer_api.buy_product()
+                prod = self.api.buy_product()
                 new_products.append(prod)
             except Exception as e:
                 logging.warning('Could not buy new product from producer api: {}'.format(e))
@@ -226,7 +227,7 @@ class MLMerchant(ABC, SuperMerchant):
 
     def get_offers(self):
         try:
-            return self.marketplace_api.get_offers(include_empty_offers=False)
+            return self.api.get_offers(include_empty_offers=False)
         except Exception as e:
             logging.warning('Could not receive offers from marketplace: {}'.format(e))
             raise e
