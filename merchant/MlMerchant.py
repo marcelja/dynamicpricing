@@ -6,106 +6,65 @@ import sys
 from threading import Thread
 from typing import List, Dict
 
-from numpy import arange
-
 from SuperMerchant import SuperMerchant
 from apiabstraction import ApiAbstraction
 from merchant_sdk.models import Offer, Product
 from ml_engine import MlEngine
+from performance_calculator import PerformanceCalculator
 from training_data import TrainingData
 from utils.feature_extractor import extract_features
-from utils.performance_calculator import calculate_performance
-from utils.utils import save_training_data, load_history, NUM_OF_UNIVERSAL_FEATURES, NUM_OF_PRODUCT_SPECIFIC_FEATURES
-
-CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE = True
-CALCULATE_UNIVERSAL_PERFORMANCE = True
+from utils.prices import PriceUtils
+from utils.utils import save_training_data, load_history
 
 
 class MLMerchant(SuperMerchant):
     def __init__(self, settings, ml_engine: MlEngine, api: ApiAbstraction = None):
         super().__init__(settings, api)
-        self.model = dict()
         self.last_learning = None
         self.ml_engine: MlEngine = ml_engine
+        self.performance_calculator = PerformanceCalculator(ml_engine, self.merchant_id)
+        self.training_data: TrainingData = None
+        self.priceutils = PriceUtils()
 
     def initialize(self):
         if self.settings["data_file"] is not None and os.path.isfile(self.settings["data_file"]):
-            self.machine_learning()
+            self.update_machine_learning()
         else:
             self.initial_learning()
 
         self.run_logic_loop()
 
+    def update_machine_learning(self):
+        thread = Thread(target=self.machine_learning_worker)
+        thread.start()
+
+    def machine_learning_worker(self):
+        self.load_and_update_training_data()
+        self.perform_learning()
+        self.performance_calculator.calc_performance(self.training_data, self.merchant_id)
+
     def initial_learning(self):
+        self.create_training_data()
+        self.perform_learning()
+        self.performance_calculator.calc_performance(self.training_data, self.merchant_id)
+        logging.debug('Setup done. Starting merchant...')
+
+    def perform_learning(self):
+        self.ml_engine.train_model(self.training_data.convert_training_data())
+        self.ml_engine.train_universal_model(self.training_data.convert_training_data(True))
+        self.last_learning = datetime.datetime.now()
+
+    def create_training_data(self):
         self.training_data = TrainingData(self.merchant_token, self.merchant_id)
         self.training_data.append_by_csvs(self.settings['market_situation_csv_path'],
                                           self.settings['buy_offer_csv_path'],
                                           self.settings["initial_merchant_id"])
         save_training_data(self.training_data, self.settings["data_file"])
-        self.model = self.ml_engine.train_model(self.training_data.convert_training_data())
-        self.universal_model = self.ml_engine.train_universal_model(self.training_data.convert_training_data(True))
-        logging.debug('Calculating performance')
-        self.calc_performance(self.training_data)
-        logging.debug('Setup done. Starting merchant...')
-        self.last_learning = datetime.datetime.now()
 
-    def calc_performance(self, training_data: TrainingData):
-        if not CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE and not CALCULATE_UNIVERSAL_PERFORMANCE:
-            return
-        sales_probabilities_ps = []
-        sales_ps = []
-        probability_per_offer = []
-        sales_probabilities_uni = []
-        sales_uni = []
-
-        for joined_market_situations in training_data.joined_data.values():
-            for jms in joined_market_situations.values():
-                if self.merchant_id in jms.merchants:
-                    for offer_id in jms.merchants[self.merchant_id].keys():
-                        amount_sales = TrainingData.extract_sales(jms.merchants[self.merchant_id][offer_id].product_id, offer_id, jms.sales)
-                        if CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE:
-                            features_ps = extract_features(offer_id, TrainingData.create_offer_list(jms), False, training_data.product_prices)
-                        if CALCULATE_UNIVERSAL_PERFORMANCE:
-                            features_uni = extract_features(offer_id, TrainingData.create_offer_list(jms), True, training_data.product_prices)
-                        if amount_sales == 0:
-                            self.add_product_specific_probabilities(features_ps, jms, offer_id, sales_probabilities_ps, sales_ps, 0, probability_per_offer)
-                            self.add_universal_probabilities(features_uni, sales_probabilities_uni, sales_uni, 0)
-                        else:
-                            for i in range(amount_sales):
-                                self.add_product_specific_probabilities(features_ps, jms, offer_id, sales_probabilities_ps, sales_ps, 1, probability_per_offer)
-                                self.add_universal_probabilities(features_uni, sales_probabilities_uni, sales_uni, 1)
-        if CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE:
-            self.process_performance_calculation(sales_probabilities_ps, sales_ps, NUM_OF_PRODUCT_SPECIFIC_FEATURES, "Product-specific")
-        if CALCULATE_UNIVERSAL_PERFORMANCE:
-            self.process_performance_calculation(sales_probabilities_uni, sales_uni, NUM_OF_UNIVERSAL_FEATURES, "Universal")
-
-    def process_performance_calculation(self, sales_probabilities: List, sales: List, num_of_features: int, model_name: str):
-        logging.info(model_name + " performance:")
-        calculate_performance(sales_probabilities, sales, num_of_features)
-
-    def add_universal_probabilities(self, features_uni, sales_probabilities_uni, sales_uni, sale_success: int):
-        if CALCULATE_UNIVERSAL_PERFORMANCE:
-            sales_uni.append(sale_success)
-            sales_probabilities_uni.append(self.ml_engine.predict_with_universal_model([features_uni]))
-
-    def add_product_specific_probabilities(self, features_ps, jms, offer_id, sales_probabilities_ps, sales_ps, sale_success: int, probability_per_offer):
-        if CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE:
-            sales_ps.append(sale_success)
-            probability = self.ml_engine.predict(jms.merchants[self.merchant_id][offer_id].product_id, [features_ps])
-            sales_probabilities_ps.append(probability)
-
-    def machine_learning(self):
-        thread = Thread(target=self.machine_learning_worker)
-        thread.start()
-
-    def machine_learning_worker(self):
-        self.training_data: TrainingData = load_history(self.settings["data_file"])
+    def load_and_update_training_data(self):
+        self.training_data = load_history(self.settings["data_file"])
         self.training_data.append_by_kafka()
         save_training_data(self.training_data, self.settings["data_file"])
-        self.ml_engine.train_model(self.training_data.convert_training_data())
-        self.ml_engine.train_universal_model(self.training_data.convert_training_data(True))
-        self.calc_performance(self.training_data)
-        self.last_learning = datetime.datetime.now()
 
     def execute_logic(self):
         self.perform_learning_if_necessary()
@@ -133,13 +92,16 @@ class MLMerchant(SuperMerchant):
 
     def process_bought_products(self, new_products: List[Product], offers: List[Offer], own_offers_by_uid: dict, product_prices_by_uid: dict):
         for product in new_products:
-            try:
-                if product.uid in own_offers_by_uid:
-                    self.update_existing_offer(offers, own_offers_by_uid, product, product_prices_by_uid)
-                else:
-                    self.create_new_offer(offers, product, product_prices_by_uid)
-            except Exception as e:
-                print('could not handle product:', product, e)
+            self.process_bought_product(offers, own_offers_by_uid, product, product_prices_by_uid)
+
+    def process_bought_product(self, offers, own_offers_by_uid, product, product_prices_by_uid):
+        try:
+            if product.uid in own_offers_by_uid:
+                self.update_existing_offer(offers, own_offers_by_uid, product, product_prices_by_uid)
+            else:
+                self.create_new_offer(offers, product, product_prices_by_uid)
+        except Exception as e:
+            print('could not handle product:', product, e)
 
     def create_new_offer(self, offers: List[Offer], product: Product, product_prices_by_uid: dict):
         offer = Offer.from_product(product)
@@ -179,71 +141,47 @@ class MLMerchant(SuperMerchant):
             next_training_session = self.last_learning + datetime.timedelta(minutes=self.settings["learning_interval"])
         if not self.last_learning or next_training_session <= datetime.datetime.now():
             self.last_learning = datetime.datetime.now()
-            self.machine_learning()
+            self.update_machine_learning()
 
     def calculate_optimal_price(self, product_prices_by_uid: dict, offer: Offer, current_offers: List[Offer] = None, product: Product = None):
-        """
-        Computes a price for a product based on trained models or (exponential) random fallback
-        :param product: product object that is to be priced
-        :param current_offers: list of offers
-        :return:
-        """
-
-        price = product_prices_by_uid[offer.uid]
+        price = product_prices_by_uid[product.uid]
         if random.uniform(0, 1) < 0.01:
             print('r', end='')
             sys.stdout.flush()
-            return self.random_price(price)
+            return self.priceutils.random_price(price)
         else:
-            return self.ml_highest_profit(current_offers, offer, price)
+            return self.highest_profit_from_ml(current_offers, offer, price)
 
-    def ml_highest_profit(self, current_offers: List[Offer], offer: Offer, price: float):
+    def highest_profit_from_ml(self, current_offers: List[Offer], offer: Offer, price: float):
         try:
-            potential_prices = self.get_potential_prices(price)
-
-            if str(offer.product_id) in self.model:
-                lst = self.create_prediction_data(offer, current_offers, potential_prices, price, False)
-                probas = self.ml_engine.predict(str(offer.product_id), lst)
-                print('.', end='')
-                sys.stdout.flush()
+            potential_prices = self.priceutils.get_potential_prices(price)
+            if str(offer.product_id) in self.ml_engine.product_model_dict:
+                probas = self.__highest_profit_from_product_model(current_offers, offer, potential_prices, price)
             else:
-                lst = self.create_prediction_data(offer, current_offers, potential_prices, price, True)
-                probas = self.ml_engine.predict_with_universal_model(lst)
-                print('U', end='')
-                sys.stdout.flush()
-
-            expected_profits = self.calculate_expected_profits(potential_prices, price, probas)
-
+                probas = self.__highest_profit_from_universal_model(current_offers, offer, potential_prices, price)
+            expected_profits = self.priceutils.calculate_expected_profits(potential_prices, price, probas)
             best_price = potential_prices[expected_profits.index(max(expected_profits))]
-
             return best_price
         except (KeyError, ValueError, AttributeError) as e:
             # Fallback for new products
             print('R', end='')
             print(e)
             sys.stdout.flush()
-            return self.random_price(price)
+            return self.priceutils.random_price(price)
 
-    def get_potential_prices(self, price, use_random_distance=False):
-        if not use_random_distance:
-            return list(arange(price * 0.9, price * 3, 0.05))
-        else:
-            potential_prices = list()
-            lowest_price = price * 0.9
-            highest_price = price * 3
-            min_difference = 1  # in cent
-            max_difference = 50  # in cent
-            price = lowest_price
-            while price <= highest_price:
-                potential_prices.append(price)
-                price += (random.randint(min_difference, max_difference) * 0.01)
-            return potential_prices
+    def __highest_profit_from_universal_model(self, current_offers, offer, potential_prices, price):
+        lst = self.create_prediction_data(offer, current_offers, potential_prices, price, True)
+        probas = self.ml_engine.predict_with_universal_model(lst)
+        print('U', end='')
+        sys.stdout.flush()
+        return probas
 
-    def random_price(self, price: float):
-        return round(price * random.uniform(0.8, 3), 2)
-
-    def calculate_expected_profits(self, potential_prices: List[float], price: float, probas: List):
-        return [(proba * (potential_prices[i] - price)) for i, proba in enumerate(probas)]
+    def __highest_profit_from_product_model(self, current_offers, offer, potential_prices, price):
+        lst = self.create_prediction_data(offer, current_offers, potential_prices, price, False)
+        probas = self.ml_engine.predict(str(offer.product_id), lst)
+        print('.', end='')
+        sys.stdout.flush()
+        return probas
 
     def create_prediction_data(self, own_offer: Offer, current_offers: List[Offer], potential_prices: List[int], price: float, universal_features: bool):
         lst = []

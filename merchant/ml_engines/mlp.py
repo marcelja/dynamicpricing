@@ -1,6 +1,5 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, wait
-from threading import Lock
 from time import time
 from typing import List
 
@@ -10,7 +9,6 @@ from ml_engine import MlEngine
 
 
 class MlpEngine(MlEngine):
-
     def train_model(self, features: dict):
         # TODO include time and amount of sold items to featurelist
         logging.debug('Start training')
