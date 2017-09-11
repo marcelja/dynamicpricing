@@ -3,8 +3,7 @@ import logging
 import os
 import random
 import sys
-from abc import ABC, abstractmethod
-from threading import Thread, Lock
+from threading import Thread
 from typing import List, Dict
 
 from numpy import arange
@@ -12,21 +11,22 @@ from numpy import arange
 from SuperMerchant import SuperMerchant
 from apiabstraction import ApiAbstraction
 from merchant_sdk.models import Offer, Product
-from testing_data import TestingData
+from ml_engine import MlEngine
 from training_data import TrainingData
 from utils.feature_extractor import extract_features
 from utils.performance_calculator import calculate_performance
-from utils.utils import save_training_data, load_history, NUM_OF_UNIVERSAL_FEATURES, NUM_OF_PRODUCT_SPECIFIC_FEATURES, write_calculations_to_file
+from utils.utils import save_training_data, load_history, NUM_OF_UNIVERSAL_FEATURES, NUM_OF_PRODUCT_SPECIFIC_FEATURES
 
 CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE = True
 CALCULATE_UNIVERSAL_PERFORMANCE = True
 
 
-class MLMerchant(ABC, SuperMerchant):
-    def __init__(self, settings, api: ApiAbstraction = None):
+class MLMerchant(SuperMerchant):
+    def __init__(self, settings, ml_engine: MlEngine, api: ApiAbstraction = None):
         super().__init__(settings, api)
         self.model = dict()
         self.last_learning = None
+        self.ml_engine: MlEngine = ml_engine
 
     def initialize(self):
         if self.settings["data_file"] is not None and os.path.isfile(self.settings["data_file"]):
@@ -42,20 +42,12 @@ class MLMerchant(ABC, SuperMerchant):
                                           self.settings['buy_offer_csv_path'],
                                           self.settings["initial_merchant_id"])
         save_training_data(self.training_data, self.settings["data_file"])
-        self.model = self.train_model(self.training_data.convert_training_data())
-        self.universal_model = self.train_universal_model(self.training_data.convert_training_data(True))
+        self.model = self.ml_engine.train_model(self.training_data.convert_training_data())
+        self.universal_model = self.ml_engine.train_universal_model(self.training_data.convert_training_data(True))
         logging.debug('Calculating performance')
         self.calc_performance(self.training_data)
         logging.debug('Setup done. Starting merchant...')
         self.last_learning = datetime.datetime.now()
-
-    def cross_validation(self):
-        logging.debug('Creating testing set')
-        self.testing_data = TestingData()
-        self.testing_data.append_by_csvs(self.settings['testing_set_csv_path'],
-                                         self.settings['initial_merchant_id'])
-        logging.debug('Calculate probabilties per offer and write them to disk')
-        self.calculate_sales_probality_per_offer(self.testing_data)
 
     def calc_performance(self, training_data: TrainingData):
         if not CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE and not CALCULATE_UNIVERSAL_PERFORMANCE:
@@ -87,18 +79,6 @@ class MLMerchant(ABC, SuperMerchant):
         if CALCULATE_UNIVERSAL_PERFORMANCE:
             self.process_performance_calculation(sales_probabilities_uni, sales_uni, NUM_OF_UNIVERSAL_FEATURES, "Universal")
 
-    def calculate_sales_probality_per_offer(self, testing_data: TestingData):
-        probability_per_offer = []
-
-        for joined_market_situations in testing_data.joined_data.values():
-            for jms in joined_market_situations.values():
-                if self.settings["initial_merchant_id"] in jms.merchants:
-                    for offer_id in jms.merchants[self.settings["initial_merchant_id"]].keys():
-                        features_ps = extract_features(offer_id, TrainingData.create_offer_list(jms), False, testing_data.product_prices)
-                        probability = self.predict(jms.merchants[self.settings["initial_merchant_id"]][offer_id].product_id, [features_ps])
-                        probability_per_offer.append((int(offer_id), probability[0]))
-        write_calculations_to_file(probability_per_offer, self.settings['output_file'])
-
     def process_performance_calculation(self, sales_probabilities: List, sales: List, num_of_features: int, model_name: str):
         logging.info(model_name + " performance:")
         calculate_performance(sales_probabilities, sales, num_of_features)
@@ -106,12 +86,12 @@ class MLMerchant(ABC, SuperMerchant):
     def add_universal_probabilities(self, features_uni, sales_probabilities_uni, sales_uni, sale_success: int):
         if CALCULATE_UNIVERSAL_PERFORMANCE:
             sales_uni.append(sale_success)
-            sales_probabilities_uni.append(self.predict_with_universal_model([features_uni]))
+            sales_probabilities_uni.append(self.ml_engine.predict_with_universal_model([features_uni]))
 
     def add_product_specific_probabilities(self, features_ps, jms, offer_id, sales_probabilities_ps, sales_ps, sale_success: int, probability_per_offer):
         if CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE:
             sales_ps.append(sale_success)
-            probability = self.predict(jms.merchants[self.merchant_id][offer_id].product_id, [features_ps])
+            probability = self.ml_engine.predict(jms.merchants[self.merchant_id][offer_id].product_id, [features_ps])
             sales_probabilities_ps.append(probability)
 
     def machine_learning(self):
@@ -122,13 +102,8 @@ class MLMerchant(ABC, SuperMerchant):
         self.training_data: TrainingData = load_history(self.settings["data_file"])
         self.training_data.append_by_kafka()
         save_training_data(self.training_data, self.settings["data_file"])
-        product_models = self.train_model(self.training_data.convert_training_data())
-        universal_model = self.train_universal_model(self.training_data.convert_training_data(True))
-        lock = Lock()
-        lock.acquire()
-        self.model = product_models
-        self.universal_model = universal_model
-        lock.release()
+        self.ml_engine.train_model(self.training_data.convert_training_data())
+        self.ml_engine.train_universal_model(self.training_data.convert_training_data(True))
         self.calc_performance(self.training_data)
         self.last_learning = datetime.datetime.now()
 
@@ -228,12 +203,12 @@ class MLMerchant(ABC, SuperMerchant):
 
             if str(offer.product_id) in self.model:
                 lst = self.create_prediction_data(offer, current_offers, potential_prices, price, False)
-                probas = self.predict(str(offer.product_id), lst)
+                probas = self.ml_engine.predict(str(offer.product_id), lst)
                 print('.', end='')
                 sys.stdout.flush()
             else:
                 lst = self.create_prediction_data(offer, current_offers, potential_prices, price, True)
-                probas = self.predict_with_universal_model(lst)
+                probas = self.ml_engine.predict_with_universal_model(lst)
                 print('U', end='')
                 sys.stdout.flush()
 
@@ -280,19 +255,3 @@ class MLMerchant(ABC, SuperMerchant):
             prediction_data = extract_features(own_offer.offer_id, current_offers, universal_features, self.training_data.product_prices)
             lst.append(prediction_data)
         return lst
-
-    @abstractmethod
-    def train_model(self, features):
-        pass
-
-    @abstractmethod
-    def train_universal_model(self, features: dict):
-        pass
-
-    @abstractmethod
-    def predict(self, product_id: str, situations: List[List[int]]):
-        pass
-
-    @abstractmethod
-    def predict_with_universal_model(self, situations: List[List[int]]):
-        pass
