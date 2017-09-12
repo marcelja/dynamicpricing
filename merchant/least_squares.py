@@ -7,11 +7,11 @@ import threading
 
 from scipy.optimize import fmin
 
-from csv_reader_ls import CSVReader
 from merchant_sdk import MerchantBaseLogic, MerchantServer
 from merchant_sdk.api import PricewarsRequester, MarketplaceApi, ProducerApi
 from merchant_sdk.models import Offer
 from utils import download_data
+from utils.csv_reader_ls import CSVReader
 
 sys.path.append('./')
 sys.path.append('../')

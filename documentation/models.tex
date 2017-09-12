@@ -1,0 +1,14 @@
+%!TEX root = main.tex
+\section{Models}
+\subsection{Considered models}
+\subsubsection{Logistic Regression}
+\subsubsection{MLP}
+\subsubsection{Random Forest}
+\subsubsection{Least Squares}
+	~\\
+	Additionally to the three different machine learning approaches, we also evaluated another technique: Least Squares. This method creates a function which approximates as good as possible a set of given measurement values. Adapted to our use case, it creates a function from the different prices, a product has been sold for. By using this function, we can get the price for which the probability of a sale is the highest. Furthermore, a trade-of between highest probability and highest profit can be presumed.
+\subsection{Evaluation}
+	~\\
+	After an basic implementation of each technique, we evaluated all. Right from the beginning, the least squares approach did not prove to be competitive to the machine learning approaches. Although all approaches were on a similar level at the beginning, the machine learning approaches became better over time, while the least squares approach remained at this level.
+
+	So, three techniques have been left over. Because the differences were relatively small, we gave us some more time to evaluate these techniques and started to optimize some relevant parameters, such as features, model parameters, etc.. At the same time, we also thought about further options to optimize our merchant independently from the concrete machine learning approach. This led to some additional functionailities of our merchant (see chapter \ref{sec:add_func}).

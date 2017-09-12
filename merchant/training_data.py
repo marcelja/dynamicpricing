@@ -3,12 +3,13 @@ import csv
 import logging
 from typing import List
 
-from kafka_downloader import download_kafka_files
+from utils.timestamp_converter import TimestampConverter
+
 from merchant_sdk.models import Offer
 from models.joined_market_situation import JoinedMarketSituation
-from utils import extract_features, get_buy_offer_fieldnames, get_market_situation_fieldnames
-from timestamp_converter import TimestampConverter
-from collections import defaultdict
+from utils.utils import get_buy_offer_fieldnames, get_market_situation_fieldnames
+from utils.feature_extractor import extract_features
+from utils.kafka_downloader import download_kafka_files
 
 
 class TrainingData:
@@ -30,7 +31,7 @@ class TrainingData:
 
     def __init__(self, merchant_token: str, merchant_id: str,
                  market_situations_json=None, sales_json=None):
-        self.joined_data = defaultdict(lambda : defaultdict(JoinedMarketSituation))
+        self.joined_data = {}
         self.merchant_token: str = merchant_token
         self.merchant_id: str = merchant_id
         self.timestamps: List = []
@@ -139,7 +140,11 @@ class TrainingData:
                                                {'standard': line['shipping_time_standard'], 'prime': line['shipping_time_prime']},
                                                '', line['uid'])
 
-    def prepare_joined_data(self, product_id, timestamp, merchant_id=None):
+    def prepare_joined_data(self, product_id: str, timestamp: str, merchant_id=None):
+        if product_id not in self.joined_data:
+            self.joined_data[product_id] = {}
+        if timestamp not in self.joined_data[product_id]:
+            self.joined_data[product_id][timestamp] = JoinedMarketSituation()
         if merchant_id and merchant_id not in self.joined_data[product_id][timestamp].merchants:
             self.joined_data[product_id][timestamp].merchants[merchant_id] = {}
 

@@ -3,25 +3,28 @@ import random
 import sys
 
 from SuperMerchant import SuperMerchant
+from apiabstraction import ApiAbstraction
 from merchant_sdk import MerchantServer
-from settings import Settings
+from utils.settingsbuilder import SettingsBuilder
 
 sys.path.append('./')
 sys.path.append('../')
 
 
 class RandomMerchant(SuperMerchant):
-    def __init__(self):
-        settings = Settings.create(None, '7xCvFloHDuwm9iHDVYpjjoVzlXue01I7yU3EGsVTnSGwAXAg6yQqnvpZTkEUlWbk')
+    def __init__(self, api: ApiAbstraction = None):
+        settings = SettingsBuilder() \
+            .with_merchant_token('7xCvFloHDuwm9iHDVYpjjoVzlXue01I7yU3EGsVTnSGwAXAg6yQqnvpZTkEUlWbk') \
+            .build()
         settings["shipping"] = 5
         settings["max_req_per_sec"] = 40.0
-        super().__init__(settings)
+        super().__init__(settings, api)
         self.run_logic_loop()
 
     # This method might be moved to super, maybe
     def setup(self):
         try:
-            marketplace_offers = self.marketplace_api.get_offers()
+            marketplace_offers = self.api.get_offers()
             for i in range(self.settings['initialProducts']):
                 self.buy_product_and_update_offer(marketplace_offers)
         except Exception as e:
@@ -29,7 +32,7 @@ class RandomMerchant(SuperMerchant):
 
     def execute_logic(self):
         try:
-            offers = self.marketplace_api.get_offers()
+            offers = self.api.get_offers()
             # What does this thing do? Was in sample code
             missing_offers = self.settings["initialProducts"] - len(self.offers)
 
@@ -38,14 +41,14 @@ class RandomMerchant(SuperMerchant):
                     offer = self.offers[product.uid]
                     offer.price = self.calculate_prices(offers, product.uid, product.price, product.product_id)
                     try:
-                        self.marketplace_api.update_offer(offer)
+                        self.api.update_offer(offer)
                     except Exception as e:
                         print('error on updating an offer:', e)
                 else:
                     print('ERROR: product uid is not in offers; skipping')
         except Exception as e:
             print('error on executing lloolloollthe logic:', e)
-        return settings['maxReqPerSec'] / 10
+        return self.settings['maxReqPerSec'] / 10
 
     def calculate_prices(self, marketplace_offers, product_uid, purchase_price, product_id):
         price = random.randint(purchase_price * 100, 10000) / 100
