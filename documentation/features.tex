@@ -26,21 +26,26 @@
 	In general, the use of this feature is similar to the previous. However, it is particularly useful if only a single or two competitors have abnormal prices and would adulterate the prediction results. In those cases, the distance cheapest (and maybe second cheapest) is very high, but the distances to other competitors are correspondingly lower.
 \subsubsection{Price}
 	~\\
+	The following features are not universal anymore but product specific features. Those features we only used in our models we have created for each product.
+
+	The first one is the price. While being on a specific price rank for example not necessarily leads to a concrete price (meaning the \lq{best}\rq\ price), the concrete selling prices do. This is especially helpful, if the different price ranks are wide apart. In those cases, it is not automatically said, if the price should be closer to the next cheaper price or to the next price being more expensive.
 \subsubsection{Quality}
 	~\\
+	Similar to the price feature, we also introduced the concrete quality as a feature. The influence of this property is of course not as high as that of the price (the difference between the qualities is in most cases relatively small). But even here it is possible, that the best quality and the worst quality in the market situation differ by more than one, so the best price can be influenced by the fact wheter our quality is closer to the better one or closer to the worse one.
 \subsubsection{Shipping time}
 	~\\
+	This feature is pretty similar to the two previous ones. A customer in Europe might be willing to spend more money for a shorter shipping time. If, for example, two competitors have different shipping times, saying one from Europe with 1 day and one from Asia with 21 days, rank two can be 2 days (could justify a higher price) but also 20 days. The concrete shipping time is, from this point of view, important for our model to respect.
 \subsubsection{Average price}
 	~\\
+	This feature describes the average price of the current market situation, without our own potential offer. It can be used to observe the difference of our own selling prices to the corresponding average prices.
 \subsubsection{Average price including our own offer}
 	~\\
+	This feature is similar to the previous one, but the average price is calculated from all offers, including our potential offer.
 \subsubsection{Average sale prices}
 	~\\
-\subsubsection{Absolute price difference to cheapest price}
+	Additionally to the average prices of the current market situation, we also use the average selling price, we have already sold this product for.
+\subsubsection{Absolute price differences to cheapest, 2nd cheapest and 3rd cheapest price}
 	~\\
-\subsubsection{Absolute price difference to 2nd cheapest price}
-	~\\
-\subsubsection{Absolute price difference to 3rd cheapest price}
-	~\\
+	Because most customers compare and chose from the cheapest offers, we also use the price difference to the three cheapest prices in the current market situation as a feature. A possible result could be, that the best price is e. g. to be scarcely more expensive than the 2nd cheapest price.
 \subsection{Not chosen features}
 \subsection{Evaluation}

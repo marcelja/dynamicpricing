@@ -1,5 +1,6 @@
 %!TEX root = main.tex
 \section{Additional functionalities of our merchant}
+\label{sec:add_func}
 \subsection{Weighting}
 	To deal with changing market situations and a changing customer behaviour, we introduced a weighting system, favoring more current sale events over older ones. Using this technique, the models are learning changed conditions faster without ignoring older sale events at all. Not to completely ignore older sale events is important to prevent the model from changing its behaviour too fast in case of faulty sale events, temporarily different customer behaviours by chance or other reasons. In those cases we do not want the model to break and producing completely senseless prices.
 
