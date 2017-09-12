@@ -21,3 +21,12 @@ class TestPerformanceCalculator(TestCase):
         self.assertAlmostEqual(expected_ll0, ll0)
         self.assertAlmostEqual(expected_aic, aic)
         self.assertAlmostEqual(expected_mcf, mcf)
+
+    def test_calculate_performance_without_sales(self):
+        # should not throw a division by zero exception...
+        ll1, ll0, aic, mcf = self.tested.calculate_performance([0.3, 0.5, 0.7], [], 5)
+
+        self.assertEqual(0, ll1)
+        self.assertEqual(0, ll0)
+        self.assertEqual(10, aic)
+        self.assertEqual(-1, mcf)

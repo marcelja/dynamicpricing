@@ -129,7 +129,10 @@ class PerformanceCalculator:
         return ll0
 
     def __calculate_mcfadden(self, ll1, ll0):
-        mcf = 1 - ll1 / ll0
+        if ll0 == 0:  # prevent division by zero
+            mcf = -1
+        else:
+            mcf = 1 - ll1 / ll0
         logging.debug('Hint: 0.2 < mcf < 0.4 is a good fit (higher value is better)')
         logging.info('McFadden R squared is: {}'.format(mcf))
         return mcf
