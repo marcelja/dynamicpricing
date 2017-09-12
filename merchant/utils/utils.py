@@ -1,7 +1,7 @@
 import logging
 import os
 
-import dill as pickle
+import pickle
 import pandas as pd
 
 from merchant_sdk.api import KafkaApi, PricewarsRequester

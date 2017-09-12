@@ -7,7 +7,7 @@ from utils.utils import get_market_situation_fieldnames
 
 class TestingData(object):
     def __init__(self):
-        self.joined_data = defaultdict(lambda : defaultdict(JoinedMarketSituation))
+        self.joined_data = {}
         self.timestamps = []
         # Note: Can't store all prizes from sales, since we have no sales, do we?
         self.product_prices = defaultdict(list)
@@ -34,6 +34,10 @@ class TestingData(object):
                                                {'standard': line['shipping_time_standard'], 'prime': line['shipping_time_prime']},
                                                '', line['uid'])
 
-    def prepare_joined_data(self, product_id, timestamp, merchant_id):
+    def prepare_joined_data(self, product_id: str, timestamp: str, merchant_id):
+        if product_id not in self.joined_data:
+            self.joined_data[product_id] = {}
+        if timestamp not in self.joined_data[product_id]:
+            self.joined_data[product_id][timestamp] = JoinedMarketSituation()
         if merchant_id not in self.joined_data[product_id][timestamp].merchants:
             self.joined_data[product_id][timestamp].merchants[merchant_id] = {}

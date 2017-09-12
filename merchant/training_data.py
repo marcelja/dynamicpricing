@@ -1,7 +1,6 @@
 import bisect
 import csv
 import logging
-from collections import defaultdict
 from typing import List
 
 from utils.timestamp_converter import TimestampConverter
@@ -32,7 +31,7 @@ class TrainingData:
 
     def __init__(self, merchant_token: str, merchant_id: str,
                  market_situations_json=None, sales_json=None):
-        self.joined_data = defaultdict(lambda : defaultdict(JoinedMarketSituation))
+        self.joined_data = {}
         self.merchant_token: str = merchant_token
         self.merchant_id: str = merchant_id
         self.timestamps: List = []
@@ -141,7 +140,11 @@ class TrainingData:
                                                {'standard': line['shipping_time_standard'], 'prime': line['shipping_time_prime']},
                                                '', line['uid'])
 
-    def prepare_joined_data(self, product_id, timestamp, merchant_id=None):
+    def prepare_joined_data(self, product_id: str, timestamp: str, merchant_id=None):
+        if product_id not in self.joined_data:
+            self.joined_data[product_id] = {}
+        if timestamp not in self.joined_data[product_id]:
+            self.joined_data[product_id][timestamp] = JoinedMarketSituation()
         if merchant_id and merchant_id not in self.joined_data[product_id][timestamp].merchants:
             self.joined_data[product_id][timestamp].merchants[merchant_id] = {}
 
