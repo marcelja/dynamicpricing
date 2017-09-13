@@ -10,7 +10,6 @@ from ml_engine import MlEngine
 
 class MlpEngine(MlEngine):
     def train_model(self, features: dict):
-        # TODO include time and amount of sold items to featurelist
         logging.debug('Start training')
         product_ids = features.keys()
         start_time = int(time() * 1000)
@@ -22,11 +21,11 @@ class MlpEngine(MlEngine):
         logging.debug('Training took {} ms'.format(end_time - start_time))
 
     def train_model_for_id(self, product_id, data):
-        product_model = MLPRegressor(hidden_layer_sizes=(80,),
+        product_model = MLPRegressor(hidden_layer_sizes=(5,),
                                      activation='relu',
                                      solver='adam',
                                      learning_rate='adaptive',
-                                     max_iter=500,
+                                     max_iter=1000,
                                      learning_rate_init=0.01,
                                      alpha=0.01)
         product_model.fit(data[0], data[1])
@@ -34,11 +33,11 @@ class MlpEngine(MlEngine):
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')
-        universal_model = MLPRegressor(hidden_layer_sizes=(80,),
+        universal_model = MLPRegressor(hidden_layer_sizes=(5,),
                                        activation='relu',
                                        solver='adam',
                                        learning_rate='adaptive',
-                                       max_iter=500,
+                                       max_iter=1000,
                                        learning_rate_init=0.01,
                                        alpha=0.01)
         start_time = int(time() * 1000)
