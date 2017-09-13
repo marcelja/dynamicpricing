@@ -6,10 +6,9 @@ import requests
 from merchant_sdk.api import PricewarsRequester, KafkaApi
 
 
-def download_kafka_files(merchant_token):
+def download_kafka_files(merchant_token, kafka_url):
     logging.debug('Downloading files from Kafka ...')
     PricewarsRequester.add_api_token(merchant_token)
-    kafka_url = os.getenv('PRICEWARS_KAFKA_REVERSE_PROXY_URL', 'http://127.0.0.1:8001')
     kafka_api = KafkaApi(host=kafka_url)
     data_url_ms = kafka_api.request_csv_export_for_topic('marketSituation')
     data_url_bo = kafka_api.request_csv_export_for_topic('buyOffer')

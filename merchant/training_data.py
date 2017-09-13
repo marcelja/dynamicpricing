@@ -219,7 +219,7 @@ class TrainingData:
                 self.append_sales(line)
         self.print_info()
 
-    def append_by_kafka(self, market_situations_path=None, buy_offer_path=None):
+    def append_by_kafka(self, kafka_url, market_situations_path=None, buy_offer_path=None):
         ########## use kafka example files
         if market_situations_path and buy_offer_path:
             self.append_by_csvs(market_situations_path, buy_offer_path)
@@ -227,7 +227,7 @@ class TrainingData:
         #############
 
         try:
-            ms, bo = download_kafka_files(self.merchant_token)
+            ms, bo = download_kafka_files(self.merchant_token, kafka_url)
 
         except Exception as e:
             logging.warning('Could not download data from kafka: {}'.format(e))
