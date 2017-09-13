@@ -39,6 +39,7 @@ class TrainingData:
 
         self.total_sale_events: int = 0
         self.sales_wo_ms: int = 0
+        self.number_marketsituations: int = 0
 
         self.product_prices: dict = dict()  # store all prices from sales
 
@@ -116,6 +117,8 @@ class TrainingData:
                 counter_s += len(situation.sales)
                 for merchant in situation.merchants.values():
                     counter_ms += len(merchant)
+
+        self.number_marketsituations = len(self.timestamps)
 
         print('\nTraining data: \n\tEntries market_situations: {} \
                \n\tEntries sales: {} \

@@ -146,7 +146,7 @@ class MLMerchant(SuperMerchant):
 
     def calculate_optimal_price(self, product_prices_by_uid: dict, own_offer: Offer, uid, current_offers: List[Offer] = None):
         price = product_prices_by_uid[uid]
-        if random.uniform(0, 1) < 0.01:
+        if random.uniform(0, 1) < 0.01 or self.training_data.number_marketsituations < self.settings["min_marketsituations"]:
             print('r', end='')
             sys.stdout.flush()
             return self.priceutils.random_price(price)

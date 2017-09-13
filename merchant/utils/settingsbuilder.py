@@ -24,6 +24,7 @@ class SettingsBuilder:
         self.settings["data_file"] = None
         self.settings["underprice"] = 0.2
         self.settings["initialProducts"] = 5
+        self.settings["min_marketsituations"] = 50
         self.settings["market_situation_csv_path"] = '../data/marketSituation.csv'
         self.settings["buy_offer_csv_path"] = '../data/buyOffer.csv'
         self.settings["initial_merchant_id"] = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
