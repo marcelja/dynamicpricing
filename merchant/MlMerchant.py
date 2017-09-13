@@ -63,6 +63,7 @@ class MLMerchant(SuperMerchant):
 
     def load_and_update_training_data(self):
         self.training_data = load_history(self.settings["data_file"])
+        self.training_data.merchant_token = self.merchant_token
         self.training_data.append_by_kafka(self.settings["kafka_reverse_proxy_url"])
         save_training_data(self.training_data, self.settings["data_file"])
 
