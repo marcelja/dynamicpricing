@@ -84,7 +84,7 @@ class MLMerchant(SuperMerchant):
         self.update_existing_offers(offers, own_offers, product_prices_by_uid)
         self.process_bought_products(new_products, offers, own_offers_by_uid, product_prices_by_uid)
 
-        return max(1.0, self.api.get_request_counter) / self.settings["max_req_per_sec"]
+        return max(1.0, self.api.request_counter) / self.settings["max_req_per_sec"]
 
     def get_product_prices(self) -> Dict[str, float]:
         products = self.api.get_products()
@@ -109,7 +109,7 @@ class MLMerchant(SuperMerchant):
         offer.shipping_time['standard'] = self.settings["shipping"]
         offer.shipping_time['prime'] = self.settings["primeShipping"]
         offer.merchant_id = self.merchant_id
-        offer.price = self.calculate_optimal_price(product_prices_by_uid, offer, current_offers=offers + [offer], product=product)
+        offer.price = self.calculate_optimal_price(product_prices_by_uid, offer, product.uid, current_offers=offers + [offer])
         self.api.add_offer(offer)
 
     def update_existing_offer(self, offers: List[Offer], own_offers_by_uid: dict, product: Product, product_prices_by_uid: dict):
@@ -117,7 +117,7 @@ class MLMerchant(SuperMerchant):
         offer.amount += product.amount
         offer.signature = product.signature
         self.api.restock(offer.offer_id, amount=product.amount, signature=product.signature)
-        offer.price = self.calculate_optimal_price(product_prices_by_uid, offer, current_offers=offers, product=product)
+        offer.price = self.calculate_optimal_price(product_prices_by_uid, offer, product.uid, current_offers=offers)
         self.api.update_offer(offer)
 
     def update_existing_offers(self, offers: List[Offer], own_offers: List[Offer], product_prices_by_uid: dict):
@@ -125,7 +125,7 @@ class MLMerchant(SuperMerchant):
             if own_offer.amount > 0:
                 # only update an existing offer, when new price is different from existing one
                 old_price = own_offer.price
-                own_offer.price = self.calculate_optimal_price(product_prices_by_uid, own_offer, current_offers=offers)
+                own_offer.price = self.calculate_optimal_price(product_prices_by_uid, own_offer, own_offer.uid, current_offers=offers)
                 if float(own_offer.price) != float(old_price):
                     self.api.update_offer(own_offer)
 
@@ -143,8 +143,8 @@ class MLMerchant(SuperMerchant):
             self.last_learning = datetime.datetime.now()
             self.update_machine_learning()
 
-    def calculate_optimal_price(self, product_prices_by_uid: dict, own_offer: Offer, current_offers: List[Offer] = None, product: Product = None):
-        price = product_prices_by_uid[product.uid]
+    def calculate_optimal_price(self, product_prices_by_uid: dict, own_offer: Offer, uid, current_offers: List[Offer] = None):
+        price = product_prices_by_uid[uid]
         if random.uniform(0, 1) < 0.01:
             print('r', end='')
             sys.stdout.flush()

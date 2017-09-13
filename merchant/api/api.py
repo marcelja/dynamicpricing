@@ -29,7 +29,7 @@ class Api(ApiAbstraction):
     def update_offer(self, offer: Offer):
         try:
             self.increase_request_counter()
-            return self.update_offer(offer)
+            return self.marketplace_api.update_offer(offer)
         except Exception as e:
             logging.warning('Could not update offer on marketplace: {}'.format(e))
 
