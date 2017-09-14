@@ -3,7 +3,7 @@
 \subsection{Considered models}
 \subsubsection{Logistic Regression}
     ~\\
-    For our dynamic pricing strategy we first evaluated a binary Logistic Regression model. Gernerally, they are used to estimate a categorical dependent variable based on a logistic function. In our case, we estimate the probability of a binary response (sold or not). Hence, we use a binary logistic model. Otherwise, if there more than two possbile outcome classes, it is called multinomial Logistic Regression.
+    For our dynamic pricing strategy we first evaluated a binary Logistic Regression model. Generally, they are used to estimate a categorical dependent variable based on a logistic function. In our case, we estimate the probability of a binary response (sold or not). Hence, we use a binary logistic model. Otherwise, if there more than two possible outcome classes, it is called multinomial Logistic Regression.
     Our approach creates a coordinate system, where each point represents a market situation based on the given features. Now, it models the expected value by a linear function in such a way, that the squared error is as small as possible. The resulting function represents the coherence between the features ($X_1, X_2, ..., X_m$) and the expected dependent variable $E(Y)$ as follows:
 
     \begin{equation}
@@ -11,7 +11,7 @@
     E(Y) = \beta _{0}+\beta _{1}x_{1}+\beta _{2}x_{2}+\cdots +\beta _{m}x_{m},
     \end{equation}
 
-    where $\beta _m$ are the coefficients to be determined. Until that point, there is no difference between Linear and Logistic Regression. Since we want to calculate a sale probabilty for a given market situation, we have to apply a logistic function in addition to our existing one. Therefore, we use
+    where $\beta _m$ are the coefficients to be determined. Until that point, there is no difference between Linear and Logistic Regression. Since we want to calculate a sale probability for a given market situation, we have to apply a logistic function in addition to our existing one. Therefore, we use
 
     \begin{equation}
     \label{eq.logreg.log}
@@ -46,7 +46,7 @@
 	~\\
 	After a basic implementation of each technique, we evaluated all. Right from the beginning, the least squares approach did not prove to be competitive to the machine learning approaches. Although all approaches were on a similar level at the beginning, the machine learning approaches became better over time, while the least squares approach remained at this level.
 
-	So, three techniques have been left over. Because the differences were relatively small, we gave us some more time to evaluate these techniques and started to optimize some relevant parameters, such as features, model parameters, etc.. At the same time, we also thought about further options to optimize our merchant independently from the concrete machine learning approach. This led to some additional functionailities of our merchant (see chapter \ref{sec:add_func}).
+	So, three techniques have been left over. Because the differences were relatively small, we gave us some more time to evaluate these techniques and started to optimize some relevant parameters, such as features, model parameters, etc.. At the same time, we also thought about further options to optimize our merchant independently from the concrete machine learning approach. This led to some additional functionalities of our merchant (see chapter \ref{sec:add_func}).
 
 
 
