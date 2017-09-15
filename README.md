@@ -31,4 +31,5 @@ export API_TOKEN="<API TOKEN>"
 
 ### CSV interface
 
-`python rand_for.py --train <train_offers.csv> --buy <buy_offers.csv> --merchant <merchant_id> --test <test_offers.csv> --output out.txt`
+* `rm ../tmp/*`
+* `python rand_for.py --train <train_offers.csv> --buy <buy_offers.csv> --merchant <merchant_id> --test <test_offers.csv> --output out.txt`
