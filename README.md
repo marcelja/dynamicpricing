@@ -1,5 +1,7 @@
 # Data-Driven Demand Learning and Dynamic Pricing Strategies in Competitive Markets
 
+The main merchant is Random Forest (`merchant/rand_for.py`).
+
 ### Setup
 
 * Install Python 3.6 or create virtual environment (e.g. `virtualenv -p python3.6 env` and `source env/bin/activate`)
@@ -21,12 +23,12 @@ export API_TOKEN="<API TOKEN>"
 * `python rand_for.py --port <PORT>`
 * Go to `http://vm-mpws2016hp1-02.eaalab.hpi.uni-potsdam.de/index.html#/config/merchant` and start merchant
 
-### Reset route
+### Reset merchant
 
-`http://vm-dynpricing-team-8.eaalab.hpi.uni-potsdam.de:<PORT>/reset`
-
-TODO
+* Stop server (Ctrl+C)
+* `rm ../tmp/*`
+* Start server (`python rand_for.py --port <PORT>`)
 
 ### CSV interface
 
-TODO
+`python rand_for.py --train <train_offers.csv> --buy <buy_offers.csv> --merchant <merchant_id> --test <test_offers.csv> --output out.txt`
