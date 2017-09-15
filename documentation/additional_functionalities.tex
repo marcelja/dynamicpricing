@@ -11,4 +11,5 @@
 	This model makes sense since it offers a more precise prediction of a good new price. Compared to other approaches for those situations (such as random prices, average prices over all products, ...), it respects typical consumer decisions without detailed information about the concrete behaviour when buying this product. But being on a specific price rank w. r. t. quality or shipping time can be a good approach anyway, at least better than a randomly chosen price.
 
 \subsection{Random prices}
+	\label{sec:random_prices}
 	For a kind of price exploration and to avoid having not enough different sale situations leading to a model which cannot predict the best price, we occasionally generate random prices instead of using the model. This random price is any value between 0.8 times and 3 times the purchase price. In case of a sale event whith such a randomly generated price, the model is able to respect it, too, and might have better learning results. Especially at the beginning, when there are few sale events to be considered (and maybe with prices from the universal model), this is important on the way to an optimized model.
