@@ -73,7 +73,3 @@ class ApiAbstraction(ABC):
     @abstractmethod
     def reset_request_counter(self):
         pass
-
-    @abstractmethod
-    def get_request_counter(self):
-        pass

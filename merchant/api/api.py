@@ -84,9 +84,6 @@ class Api(ApiAbstraction):
     def update_producer_url(self, producer_url: str):
         self.producer_api.host = producer_url
 
-    def get_request_counter(self):
-        return self.request_counter
-
     def increase_request_counter(self):
         self.request_counter += 1
 
