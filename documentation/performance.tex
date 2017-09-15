@@ -23,7 +23,7 @@
     \begin{figure}[ht]
         \centering
         \includegraphics[width=0.35\textwidth]{img/rndmfrst_explor2.png}
-        \caption{Price chart exploration phase}
+        \caption{price chart exploration phase}
         \label{fig2}
     \end{figure}
  
@@ -34,14 +34,61 @@
 
     \begin{figure}[ht]
         \centering
-      \includegraphics[width=0.35\textwidth]{img/logit_prices.png}
-        \caption{Price chart Logistic Regression}
+        \includegraphics[width=0.35\textwidth]{img/logit_prices.png}
+        \caption{price chart Logistic Regression}
         \label{fig3}
     \end{figure}
- 
+
+    The profit per minute is illustrated in figure \ref{fig4}. Logistic Regression has already during the exploration phase more profit per minute than the other merchants. When this phase ends (at the time 17:48:00) the profit per minute continues to grow.
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.45\textwidth]{img/logit_profit_per_min.png}
+        \caption{profit per minute Logistic Regression}
+        \label{fig4}
+    \end{figure}
+
+    At the end the Logistic Regression model is very successful with the strategy of just setting the highest possible price. Also the long term performance is quite good. Logistic Regression has approximately five to six times of revenue compared to the merchant with the second most.
 
 
 \subsubsection{Random Forest Simulation}
+    ~\\
+    Figure \ref{fig5} shows the price chart of Random Forest after the exploration phase. In comparison to Logistic Regression the prices are not set to a constant price. The prices are still higher than the other merchants and for a short time the highest possible. These prices are regularly adjusted though.
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.45\textwidth]{img/rndmfrst_prices.png}
+        \caption{price chart Random Forest}
+        \label{fig5}
+    \end{figure}
 
-    
+    Random Forest generates the most total profit. In figure \ref{fig6} this advantage is represented. But it is not as big as the advantage of Logistic Regression.
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.4\textwidth]{img/rndmfrst_total_profit.png}
+        \caption{total profit Random Forest}
+        \label{fig6}
+    \end{figure} 
+
+
+\subsubsection{Logistic Regression vs. Random Forest}
+    ~\\
+    To see if our two different models influence each other we let them compete in the same simulation. After the exploration phase both models are deciding for the highest possible price (see figure \ref{fig7}).
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.5\textwidth]{img/prices_both.png}
+        \caption{price chart both models}
+        \label{fig7}
+    \end{figure} 
+
+    Thereafter Logistic Regression remains at this mark while Random Forest predicts other prices. Because of that Random Forest gains many sales with a low price and does not generate much profit. Figure \ref{fig8} shows the total profit.
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.45\textwidth]{img/total_profit_both.png}
+        \caption{total profit both models}
+        \label{fig8}
+    \end{figure} 
+
+
 \subsection{Drawbacks}
