@@ -1,3 +1,7 @@
 %!TEX root = main.tex
 \section{Future work}
 \label{sec:future_work}
+
+Even though our merchants work mostly as expected there is space for improvement. Handling with edge cases is difficult. A merchant can quickly reach a bad state. Especially, when this state causes useless training data it decreases the performance drastically.
+
+Additional rules would help to solve that issue (e.g. reducing the price sequentially when the merchant doesn't generate sale events). Similar rules need to be developed to lead the merchant's algorithm in the right direction. This could prevent to reach any edge case.
