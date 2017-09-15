@@ -10,8 +10,8 @@ from ml_engine import MlEngine
 from training_data import TrainingData
 from utils.feature_extractor import extract_features
 
-CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE = True
-CALCULATE_UNIVERSAL_PERFORMANCE = True
+CALCULATE_PRODUCT_SPECIFIC_PERFORMANCE = False
+CALCULATE_UNIVERSAL_PERFORMANCE = False
 NUM_OF_UNIVERSAL_FEATURES = 5
 NUM_OF_PRODUCT_SPECIFIC_FEATURES = 14
 
