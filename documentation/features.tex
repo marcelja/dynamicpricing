@@ -7,7 +7,7 @@
 	\subsubsection{Price rank}
 	\label{sec:pricerank}
 		~\\
-		The price rank is one of our basic and most important features, especially because it can be used always, even if we don't have specific information/a specific model for the current product to sell. It represents one of the customers main causes to buy or not to buy an offer. However, this feature works much better in combination with quality, shipping time etc..
+		The price rank is one of our basic and most important features, since it can be always used, even if we don't have specific information/a specific model for the current product to sell. It represents one of the customers main causes to buy or not to buy an item. However, this feature works much better in combination with quality, shipping time etc..
 	\subsubsection{Amount of offers}
 		~\\
 		Depending on the size of the competition, higher prices may be charged or lower prices may have to be accepted in order to sell an offer with a high probability. This circumstance should be respected by the model in order to use this as an advantage.
@@ -15,8 +15,8 @@
 		~\\
 		The price difference to the cheapest price can be a good clue for what a good price is. If the difference is little, the customer might decide for a slightly more expensive offer if other conditions such as quality or shipping time are better. The higher the difference is, the higher is the probability that the customer accepts other disadvantages in order to get the best price.
 	\subsubsection{Relative price difference to 2nd \& 3rd cheapest price (in percent)}
-	\label{sec:pricediff3}
-		~\\
+    \label{sec:pricediff3}
+        ~\\
 		In general, the use of this feature is similar to the previous. However, it is particularly useful if only a single or two competitors have abnormal prices and would adulterate the prediction results. In those cases, the distance cheapest (and maybe second cheapest) is very high, but the distances to other competitors are correspondingly lower.
 	\subsubsection{Price}
 		~\\
@@ -40,7 +40,7 @@
 		Additionally to the average prices of the current market situation, we also use the average selling price, we have already sold this product for.
 	\subsubsection{Absolute price differences to cheapest, 2nd cheapest and 3rd cheapest price}
 		~\\
-		Because most customers compare and chose from the cheapest offers, we also use the price difference to the three cheapest prices in the current market situation as a feature. A possible result could be, that the best price is e. g. to be scarcely more expensive than the 2nd cheapest price.
+		Since most customers compare prices and choose one of the cheapest offers, we also use the price difference to the three cheapest prices in the current market situation as a feature. A possible result could be, that the best price is e. g. to be scarcely more expensive than the 2nd cheapest price.
 \subsection{Non-selected features}
 	Some of the features we actually planned to integrate in our merchant weren't suitable for us. The biggest problem is the high failure rate. The probability that e. g. the quality rank or shipping time rank have always the same value is relatively high. If so, we often experienced errors in the learning process leading to program crashes. However they will be briefly explained in the following, because they could be helpful under different conditions:
 	\subsubsection{Quality rank}
@@ -54,7 +54,7 @@
 		The fact if prime shipping will be provided or not can justify higher prices.
 	\subsubsection{Prime Shipping Time}
 		~\\
-		Even more interesting than the question wheter prime will be provided or not is the question, how long the concrete shipping time would be. Customers could need products particularly fast and might be willing to spend more money for this amenity.
+		Even more interesting than the question whether prime will be provided or not, is the question, how long the concrete shipping time would be. Customers could need products particularly fast and might be willing to spend more money for this amenity.
 \subsection{Evaluation}
 	During our evaluation, we did not identify differences as high as we've has expected. However all features we finally selected brought added value.
 
