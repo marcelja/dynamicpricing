@@ -4,6 +4,7 @@
     At this point we started some simulations to check various performances. We mentioned in section \ref{sec:model_eval} that the models Logistic Regression, Random Forest and MLP were left over. Before we started the simulations we performed a few tests. The three models calculated probabilities for a specific market situation. Also a set of training data was given. MLP calculated probabilities which seemed not to be realistic. However, Logistic Regression and Random Forest showed good results. Therefore, we decided to not focus on MLP any more and compare the performance of Logistic Regression and Random Forest in the simulations.
 
 \subsection{Pricewars Platform}
+\label{sec:platform}
     In the winter term 2016/17 a master's project from the HPI has built a simulation platform. The main goal of this platform is to evaluate how different pricing strategies perform. Essentially, the platform is a marketplace environment where customers exist. The customers have behaviours that can be configured. Several merchants are already implemented as well. Thus, it is easy to let our own merchant compete against others. The application is based on a microservice architecture. Each merchant has an authentication token and REST requests are used to communicate.
 
 \subsection{Simulations}
@@ -11,7 +12,7 @@
     \begin{figure}[ht]
     \centering
         \begin{tabular}{ l | c | r | r | r}
-            interc. & price rank & amount competitors & avg price & quality rank \\
+            interc. & price rank & \#competitors & avg price & quality rank \\
             \hline  
             -6.62 & 0.2 & 0.25 & -0.008 & -0.18 \\
         \end{tabular}
