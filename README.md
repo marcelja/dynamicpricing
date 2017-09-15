@@ -1,6 +1,6 @@
 # Data-Driven Demand Learning and Dynamic Pricing Strategies in Competitive Markets
 
-The main merchant is Random Forest (`merchant/rand_for.py`).
+The main merchant is Random Forest (`merchant/rand_for.py` or `merchant/demand_learning.py`).
 
 ### Setup
 
