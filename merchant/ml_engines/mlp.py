@@ -54,12 +54,8 @@ class MlpEngine(MlEngine):
 
     def predict(self, product_id, situations):
         predicted = self.product_model_dict[product_id].predict(situations)
-        for idx, predict in enumerate(predicted):
-            predicted[idx] = max(predicted[idx], 0.000001)
-        return predicted
+        return [max(0.000001, min(predict, 0.999999)) for predict in predicted]
 
     def predict_with_universal_model(self, situations: List[List[int]]):
         predicted = self.universal_model.predict(situations)
-        for idx, predict in enumerate(predicted):
-            predicted[idx] = max(predicted[idx], 0.000001)
-        return predicted
+        return [max(0.000001, min(predict, 0.999999)) for predict in predicted]

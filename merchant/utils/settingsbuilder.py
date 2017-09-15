@@ -28,7 +28,6 @@ class SettingsBuilder:
         self.settings["market_situation_csv_path"] = '../data/marketSituation.csv'
         self.settings["buy_offer_csv_path"] = '../data/buyOffer.csv'
         self.settings["initial_merchant_id"] = 'DaywOe3qbtT3C8wBBSV+zBOH55DVz40L6PH1/1p9xCM='
-        # TODO: create a csv for cross-validation
         self.settings["testing_set_csv_path"] = '../data/marketSituation.csv'
         self.settings["output_file"] = '../tmp/out.txt'
         return self
@@ -37,16 +36,15 @@ class SettingsBuilder:
         if os.getenv('API_TOKEN'):
             return os.getenv('API_TOKEN')
         else:
-            # TODO: remove for Abgabe?
             return '0hjzYcmGQUKnCjtHKki3UN2BvMJouLBu2utbWgqwBBkNuefFOOJslK4hgOWbihWl'
 
     def with_data_file(self, data_file: str):
-        if data_file is not None:
+        if data_file:
             self.settings["data_file"] = '../tmp/' + data_file
         return self
 
     def with_initial_learning_parameters(self, initial_learning_parameters: dict):
-        if initial_learning_parameters is not None:
+        if initial_learning_parameters:
             self.settings["market_situation_csv_path"] = initial_learning_parameters['train']
             self.settings["buy_offer_csv_path"] = initial_learning_parameters['buy']
             self.settings["initial_merchant_id"] = initial_learning_parameters['merchant_id']
@@ -55,7 +53,7 @@ class SettingsBuilder:
         return self
 
     def with_merchant_token(self, merchant_token: str):
-        if merchant_token is not None:
+        if merchant_token:
             self.settings["merchant_token"] = merchant_token
             self.settings["merchant_id"] = MerchantBaseLogic.calculate_id(merchant_token)
         return self

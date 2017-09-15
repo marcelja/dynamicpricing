@@ -27,10 +27,7 @@ class RandomForestEngine(MlEngine):
 
     def predict(self, product_id: str, situations: List):
         predicted = self.product_model_dict[product_id].predict(situations)
-        for idx, predict in enumerate(predicted):
-            predicted[idx] = max(predicted[idx], 0.000001)
-            predicted[idx] = min(predicted[idx], 0.999999)
-        return predicted
+        return [max(0.000001, min(predict, 0.999999)) for predict in predicted]
 
     def train_universal_model(self, features: dict):
         logging.debug('Start training universal model')
@@ -49,7 +46,4 @@ class RandomForestEngine(MlEngine):
 
     def predict_with_universal_model(self, situations: List[List[int]]):
         predicted = self.universal_model.predict(situations)
-        for idx, predict in enumerate(predicted):
-            predicted[idx] = max(predicted[idx], 0.000001)
-            predicted[idx] = min(predicted[idx], 0.999999)
-        return predicted
+        return [max(0.000001, min(predict, 0.999999)) for predict in predicted]

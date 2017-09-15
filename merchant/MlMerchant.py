@@ -27,7 +27,7 @@ class MLMerchant(SuperMerchant):
         self.priceutils = PriceUtils()
 
     def initialize(self):
-        if self.settings["data_file"] is not None and os.path.isfile(self.settings["data_file"]):
+        if self.settings["data_file"] and os.path.isfile(self.settings["data_file"]):
             self.update_machine_learning()
         else:
             self.initial_learning()
