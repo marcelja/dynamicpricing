@@ -1,6 +1,6 @@
 %!TEX root = main.tex
 \section{Performance}
-\label{section:performance}
+\label{sec:performance}
     At this point we started some simulations to check various performances. We mentioned in section \ref{sec:model_eval} that the models Logistic Regression, Random Forest and MLP were left over. Before we started the simulations we performed a few tests. The three models calculated probabilities for a specific market situation. Also a set of training data was given. MLP calculated probabilities which seemed not to be realistic. However, Logistic Regression and Random Forest showed good results. Therefore, we decided to not focus on MLP any more and compare the performance of Logistic Regression and Random Forest in the simulations.
 
 \subsection{Pricewars Platform}
@@ -92,4 +92,5 @@
     \end{figure} 
 
 
-\subsection{Drawbacks}
+\subsection{Drawback Logistic Regression}
+    In the most cases our Logistic Regression performs great. The bad thing is that the models need good data to learn. If the Logistic Regression model remains at one price it is likely to get unbalanced training data at a point. For example, we made a simulation with a customer who only buys products from merchants with the lowest three prices. In the beginning Logistic Regression was placed at rank four. And there it remained because there was not enough training data for other prices. That is why we think that Random Forest fits better in most situations. Nonetheless, this problem could be solved by some additional rules for our Logistic Regression merchant (see section \ref{sec:future_work}).
